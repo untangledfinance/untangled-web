@@ -1,4 +1,4 @@
-import { Action, Role } from './types';
+import { Action, Role } from '../types';
 
 const ALL = '*';
 const PERM_SEP = ':';

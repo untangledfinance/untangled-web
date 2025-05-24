@@ -136,7 +136,7 @@ export class Symbolization {
     return function (
       target: any,
       propertyKey: string | symbol,
-      descriptor: TypedPropertyDescriptor<Function>
+      descriptor: TypedPropertyDescriptor<any>
     ) {
       const handler = descriptor.value;
       if (handler instanceof Function) {

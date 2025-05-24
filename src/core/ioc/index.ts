@@ -1,4 +1,4 @@
-import { classOf, isClass, Symbolization, withClass, withName } from './types';
+import { classOf, isClass, Symbolization, withClass, withName } from '../types';
 
 const AutoSymbol = Symbol.for('__auto__');
 

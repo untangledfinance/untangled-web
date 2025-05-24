@@ -1,4 +1,4 @@
-import { Callable, notImplementedYet } from './types';
+import { Callable, notImplementedYet } from '../types';
 
 /**
  * Supports notifications.

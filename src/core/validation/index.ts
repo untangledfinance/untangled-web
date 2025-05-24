@@ -1,5 +1,5 @@
-import { NotFoundError } from './http/error';
-import { Optional } from './types';
+import { NotFoundError } from '../http';
+import { Optional } from '../types';
 
 /**
  * Validates the current step of an instance before its method invocation.
@@ -77,7 +77,7 @@ export function Catch(
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<Function>
+    descriptor: TypedPropertyDescriptor<any>
   ) {
     const func = descriptor.value;
     descriptor.value = function (...args: any[]) {

@@ -1,7 +1,7 @@
 import { CronJob } from 'cron';
-import { Callable, isString, notImplementedYet, withName } from './types';
-import { OnStop } from './ioc';
-import { createLogger } from './logging';
+import { Callable, isString, notImplementedYet, withName } from '../types';
+import { OnStop } from '../ioc';
+import { createLogger } from '../logging';
 
 const logger = createLogger('cron');
 
@@ -38,7 +38,7 @@ export function Cron(expression: string | CronStore) {
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<Function>
+    descriptor: TypedPropertyDescriptor<any>
   ) {
     const handler = descriptor.value;
     if (handler instanceof Function) {

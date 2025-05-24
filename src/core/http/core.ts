@@ -186,7 +186,7 @@ export function ProxyDecorator(store: ProxyStore) {
     return function (
       target: any,
       propertyKey: string | symbol,
-      descriptor: TypedPropertyDescriptor<Function>
+      descriptor: TypedPropertyDescriptor<any>
     ) {
       const routes: Route[] = (target as RouteSupport).__routes__ ?? [];
       const found = routes.findIndex(
@@ -217,7 +217,7 @@ export function RequestDecorator(method: HttpMethod) {
     return function (
       target: any,
       propertyKey: string | symbol,
-      descriptor: TypedPropertyDescriptor<Function>
+      descriptor: TypedPropertyDescriptor<any>
     ) {
       const reqPath = path ?? '/';
       const reqOptions: RequestOptions = {

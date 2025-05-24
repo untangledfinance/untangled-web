@@ -1,4 +1,4 @@
-import { notImplementedYet, withName } from './types';
+import { notImplementedYet, withName } from '../types';
 
 export enum LogLevel {
   ERROR = 'ERROR',

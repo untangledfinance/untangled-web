@@ -16,7 +16,7 @@
     "url": "https://github.com/untangledfinance/untangled-web"
   },
   "lint-staged": {
-    "*": "prettier --ignore-unknown --write \"./src/**/*.(ts|js|json)\" \"./*.(ts|js|json)\""
+    "*": "prettier --ignore-unknown --write \"./(src|scripts|examples)/**/*.(ts|js|json)\" \"./*.(ts|js|json)\""
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,7 +26,7 @@
   "scripts": {
     "clean": "test -d ./dist && rm -rf ./dist || test true",
     "build": "bun run clean && bunx tsc --outDir ./dist",
-    "format": "prettier --write \"./src/**/*.(ts|js|json)\" \"./*.(ts|js|json)\"",
+    "format": "prettier --write \"./(src|scripts|examples)/**/*.(ts|js|json)\" \"./*.(ts|js|json)\"",
     "precommit": "lint-staged",
     "prepare": "bunx husky"
   },

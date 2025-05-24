@@ -282,7 +282,7 @@ export function Cachable<O extends CacheOptions>({
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<Function>
+    descriptor: TypedPropertyDescriptor<any>
   ) {
     const generateKey = Optional(key).empty
       ? SimpleCacheKeyGenerator

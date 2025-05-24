@@ -1,4 +1,4 @@
-import { notImplementedYet } from './types';
+import { notImplementedYet } from '../types';
 
 export type FileAction = 'read' | 'write' | 'delete';
 
