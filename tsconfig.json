@@ -1,0 +1,18 @@
+{
+  "include": ["src"],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["node"],
+    "experimentalDecorators": true,
+    "module": "commonjs",
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "target": "es6",
+    "declaration": true,
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "declarationDir": "dist",
+    "resolveJsonModule": true
+  }
+}

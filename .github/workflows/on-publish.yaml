@@ -1,0 +1,31 @@
+name: Publish to GitHub Packages & NPM
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run build
+      - run: |
+          bun run scripts/publish.ts \
+            --name=@untangledfinance/untangled-web \
+            --version=${{ github.ref_name }} \
+            --registry=npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          bun run scripts/publish.ts \
+            --name=untangled-web \
+            --version=${{ github.ref_name }} \
+            --registry=registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

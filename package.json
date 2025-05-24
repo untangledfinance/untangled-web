@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "name": "untangled-web",
+  "description": "A library to build web applications in Untangled platform.",
+  "license": "MIT",
+  "keywords": [
+    "untangledfinance",
+    "untangled",
+    "typescript",
+    "ioc",
+    "web"
+  ],
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/untangledfinance/untangled-web"
+  },
+  "lint-staged": {
+    "*": "prettier --ignore-unknown --write \"./src/**/*.(ts|js|json)\" \"./*.(ts|js|json)\""
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "./dist"
+  ],
+  "scripts": {
+    "clean": "test -d ./dist && rm -rf ./dist || test true",
+    "build": "bun run clean && bunx tsc --outDir ./dist",
+    "format": "prettier --write \"./src/**/*.(ts|js|json)\" \"./*.(ts|js|json)\"",
+    "precommit": "lint-staged",
+    "prepare": "bunx husky"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/helmet": "^11.1.1",
+    "axios": "^1.8.4",
+    "bcryptjs": "^2.4.3",
+    "cron": "^3.5.0",
+    "ethers": "^6.13.4",
+    "express": "^4.21.2",
+    "fastify": "^4.26.2",
+    "jsonwebtoken": "^9.0.2",
+    "redis": "^4.7.0",
+    "ssh2": "^1.16.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/ssh2": "^1.15.5",
+    "lint-staged": "^15.4.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}
