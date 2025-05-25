@@ -36,7 +36,7 @@ export type MongoOptions = {
 export function poll(instance: Mongo, options: PollingOptions = {}) {
   if (!instance || !options.interval) return;
   let connected = undefined;
-  setInterval(() => {
+  return setInterval(() => {
     try {
       const disconnected = connected && !instance.connected;
       const reconnected = connected === false && instance.connected;

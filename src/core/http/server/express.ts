@@ -333,7 +333,7 @@ export abstract class Application extends Group implements Server {
           },
         })
       )
-      .on('error', () => this.emit('crashed'))
+      .on('error', (err: Error) => this.emit('crashed', err))
       .on('close', () => this.emit('stopped'));
     return this;
   }
