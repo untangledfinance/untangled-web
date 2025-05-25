@@ -77,7 +77,7 @@ export async function jwt<T = any>(
   return authFilter<T>(({ headers }) => {
     const authorization = headers?.authorization as string;
     const token = authorization?.replace(/^[Bb]earer\s+/g, '')?.trim();
-    return $(Jwt).verify(token);
+    return beanOf(Jwt).verify(token);
   })(req, res, ...permissions);
 }
 

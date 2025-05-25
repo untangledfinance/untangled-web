@@ -2,8 +2,13 @@
 
 bun install
 bun run build
+
+registry=registry.npmjs.org
+name=untangled-web
+version=$(bun run scripts/bump.ts --name=$name --registry=$registry)
+
 NODE_AUTH_TOKEN=$NPM_TOKEN bun run scripts/publish.ts \
-  --name=untangled-web \
-  --version=1.0.10-beta-1 \
-  --registry=registry.npmjs.org \
-  --dryrun
+  --name=$name \
+  --version=$version \
+  --registry=$registry \
+  ${@}

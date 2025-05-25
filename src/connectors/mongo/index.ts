@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { OnInit, OnStop } from '../../core/ioc';
+import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { TModel } from './types';
 
@@ -177,7 +177,7 @@ export function Model<TSchema extends mongoose.Schema = any>(
   }
   const use = options?.use ?? Mongo;
   const model = () => {
-    const mongo = use instanceof Mongo ? use : $(use);
+    const mongo = use instanceof Mongo ? use : beanOf(use);
     return mongo.model(name, schema, collection) as TModel<TSchema>;
   };
   return new Proxy(
