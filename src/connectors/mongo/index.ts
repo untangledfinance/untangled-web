@@ -166,6 +166,9 @@ export function Model<TSchema extends mongoose.Schema = any>(
     use: MongoBean;
   }
 ) {
+  if (!schema) {
+    throw new Error(`Schema must be specified`);
+  }
   const use = options?.use ?? Mongo;
   const model = () => {
     const mongo = use instanceof Mongo ? use : $(use);
@@ -179,7 +182,7 @@ export function Model<TSchema extends mongoose.Schema = any>(
       get: (_, key) => {
         if (key === 'use') {
           return (mongo: MongoBean = use) =>
-            Model(name, schema, collection, { use: mongo });
+            Model(name, schema.clone(), collection, { use: mongo });
         }
         return model()[key];
       },
