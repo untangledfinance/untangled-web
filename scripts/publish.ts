@@ -1,7 +1,7 @@
 import { readFile, writeFile, rm as removeFile, exists } from 'fs/promises';
 import { parseArgs } from 'util';
 
-import exports from '../exports';
+import modules from '../modules.json';
 
 /**
  * `package.json` structure.
@@ -13,8 +13,17 @@ type Package = {
     registry: string;
   };
   exports: {
+    /**
+     * Path to module when importing.
+     */
     [modulePath: string]: {
+      /**
+       * Path to exported file.
+       */
       import: string;
+      /**
+       * Path to exported types file.
+       */
       types: string;
     };
   };
@@ -36,7 +45,13 @@ async function usePackage(dryrun?: boolean) {
     pkg.publishConfig = {
       registry: `https://${registry}`,
     };
-    pkg.exports = exports;
+    pkg.exports = modules.reduce((e, module) => {
+      e[`./${module}`] = {
+        import: `./dist/${module}/index.js`,
+        types: `./dist/${module}/index.d.ts`,
+      };
+      return e;
+    }, {});
     await writeFile('package.json', JSON.stringify(pkg, null, 2));
     dryrun && console.log(`[dryrun] Updated package.json:\n`, pkg);
     const authToken = process.env.NODE_AUTH_TOKEN;

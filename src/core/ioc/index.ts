@@ -126,9 +126,10 @@ export function beans() {
 /**
  * Retrieves the instance of a {@link Bean} class.
  * @param cls the class or its name.
+ * @param unsafe not throwing error if no instance found.
  * @throws an error if no instance found.
  */
-export function beanOf<T>(cls: Class<T> | string) {
+export function beanOf<T>(cls: Class<T> | string, unsafe?: boolean) {
   let clz: Class<T>;
   if (!isClass(cls)) {
     clz = withName(
@@ -141,7 +142,9 @@ export function beanOf<T>(cls: Class<T> | string) {
   if ((clz as any)[AutoSymbol]) {
     new clz();
   }
-  return new Container().get<T>(clz.name);
+  return unsafe
+    ? new Container().unsafeGet<T>(clz.name)
+    : new Container().get<T>(clz.name);
 }
 
 /**
