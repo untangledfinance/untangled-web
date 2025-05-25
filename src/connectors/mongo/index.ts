@@ -139,7 +139,13 @@ export class Mongo implements OnInit, OnStop {
    * @param schema schema of the model.
    * @param collection name of the collection (if not passed, plural form of `name` will be used).
    */
-  model<T>(name: string, schema: mongoose.Schema<T>, collection?: string) {
+  model<T>(
+    name: string,
+    schema: mongoose.Schema<T>,
+    collection?: string
+  ): mongoose.Model<T> {
+    const model = this.instance.models[name];
+    if (model) return model;
     return this.instance.model<T>(name, schema, collection);
   }
 }
@@ -166,6 +172,9 @@ export function Model<TSchema extends mongoose.Schema = any>(
     use: MongoBean;
   }
 ) {
+  if (!schema) {
+    throw new Error(`Schema must be specified`);
+  }
   const use = options?.use ?? Mongo;
   const model = () => {
     const mongo = use instanceof Mongo ? use : $(use);
