@@ -271,3 +271,40 @@ export function profiles() {
       .flat()
   );
 }
+
+/**
+ * Removes all `undefined` fields (and nested fields) of a given object.
+ * @param obj the object.
+ * @param removeEmpty to remove any field if it's an empty object.
+ */
+export function defined<T>(obj: T, removeEmpty?: boolean): T {
+  if (Array.isArray(obj)) {
+    return obj
+      .map((item) => defined(item, removeEmpty))
+      .filter((item) => item !== undefined) as unknown as T;
+  }
+
+  if (typeof obj === 'object' && obj !== null) {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleaned = defined(value, removeEmpty);
+      if (cleaned !== undefined) {
+        result[key] = cleaned;
+      }
+    }
+    if (!Object.keys(result).length && removeEmpty) return;
+    return result;
+  }
+
+  return obj;
+}
+
+/**
+ * Converts a specific value into a {@link Number}.
+ * @param value the value.
+ * @returns `undefined` if converted value is `NaN`.
+ */
+export function num(value: any): number | undefined {
+  const val = Number(value);
+  if (!Number.isNaN(val)) return val;
+}
