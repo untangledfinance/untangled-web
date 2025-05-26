@@ -107,6 +107,39 @@ class Nullable<V> {
     setImmediate(() => this.then(action));
     return this.get();
   }
+
+  /**
+   * Deeply queries in underlying value if the value is not nullable.
+   * @param selector the query selector.
+   * @example
+   * const obj = Optional({
+   *   'a.b': {
+   *     c: [1, 2, 3],
+   *   },
+   * });
+   * console.log(obj.query('(a.b).c[1]').get()); // expect: 2
+   * console.log(obj.query('"a.b".c[1]').get()); // expect: 2
+   * console.log(obj.query('"a.b".c.1').get()); // expect: 2
+   * console.log(obj.query('(a.b).c.1').get()); // expect: 2
+   */
+  query<T>(selector: string) {
+    const select = (v: V) => {
+      let res: any = v;
+      const regex = /(?:\"([^\"]+)\"|\(([^\)]+)\)|([^\.\[\]]+))(?:\[(\d+)\])?/g;
+      let match: RegExpExecArray | null = null;
+
+      while ((match = regex.exec(selector)) !== null) {
+        if (res === undefined) break;
+        const key = match[1] || match[2] || match[3];
+        const index = match[4];
+        key && (res = res?.[key]);
+        index !== undefined && (res = res?.[parseInt(index, 10)]);
+      }
+
+      return res as T;
+    };
+    return this.map(select);
+  }
 }
 
 /**
