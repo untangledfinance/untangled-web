@@ -60,3 +60,5 @@ export class ConfigStore {
  * @param path path to the JSON file.
  */
 export const loadEnvFromJson = ConfigStore.loadEnvFromJson;
+
+export default new ConfigStore();

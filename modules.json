@@ -19,6 +19,9 @@
   "connectors/caching",
   "connectors/mongo",
   "connectors/caching",
+  "boot",
+  "boot/loaders",
+  "boot/decorators",
   "middlewares/auth",
   "middlewares/rate-limit"
 ]

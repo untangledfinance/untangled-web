@@ -16,5 +16,4 @@ globalThis.log = (message: string, ...args: any[]) => {
   return logger.log(logging.LogLevel.INFO, message, ...args);
 };
 
-const ConfigStore = ioc.asBean<config.ConfigStore>(config.ConfigStore);
-globalThis.Configs = new ConfigStore() as unknown as Configurations;
+globalThis.Configs = config as unknown as Configurations;
