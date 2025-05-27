@@ -51,11 +51,12 @@ export class Context<T = any> {
   /**
    * Retrieves a {@link Context} by its name.
    * @param name name of the {@link Context}.
+   * @param defaultValue the default value of the {@link Context}.
    */
-  static for<V = any>(name: string): Context<V> {
+  static for<V = any>(name: string, defaultValue?: V): Context<V> {
     let context = contexts[name];
     if (!context) {
-      context = new Context<V>(name);
+      context = new Context<V>(name, defaultValue);
       contexts[name] = context;
     }
     return context;

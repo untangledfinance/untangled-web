@@ -4,6 +4,10 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "types": ["node"],
+    "paths": {
+      "untangled-web/*": ["./dist/*"],
+      "untangled-web": ["./dist"]
+    },
     "experimentalDecorators": true,
     "module": "commonjs",
     "noImplicitOverride": true,
