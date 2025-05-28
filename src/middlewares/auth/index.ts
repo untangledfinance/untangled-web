@@ -41,21 +41,24 @@ export type ReqVerifier<T = any> = (req: AuthReq<T>) =>
 export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
   return async (req: AuthReq<T>, res: Res, ...permissions: string[]) => {
     try {
-      const { id, email, roles } = verifier(req) ?? {};
+      const { id, email, roles = ['anonymous'] } = verifier(req) ?? {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
-      let accessible = permissions.length === 0 || !validator.enabled;
-      for (const permission of permissions) {
-        if (accessible) {
-          break;
-        }
-        for (const role of roles) {
-          accessible = validator.check(permission, role);
+      const validationSkipped = permissions.length === 0 || !validator.enabled;
+      let accessible = id && email && validationSkipped;
+      if (!validationSkipped) {
+        for (const permission of permissions) {
           if (accessible) {
             break;
           }
+          for (const role of roles) {
+            accessible = validator.check(permission, role);
+            if (accessible) {
+              break;
+            }
+          }
         }
       }
-      if (id && email && accessible) {
+      if (accessible) {
         Object.defineProperty(req, '_auth', {
           value: { id, email, roles },
         });
