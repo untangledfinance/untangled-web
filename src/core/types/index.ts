@@ -187,18 +187,36 @@ export class Symbolization {
   public static process(
     cls: Class<any>,
     s: symbol,
-    thisInstance: any,
+    thisInstance?: any,
     options?: {
       skip?: string[];
+      onComplete?: () => void;
     }
   ) {
-    ((cls.prototype[s] as Function[]) ?? []).forEach(async (handler) => {
-      if (options?.skip?.includes(handler.name)) {
-        return;
-      }
-      const value = handler.bind(thisInstance)();
+    const handlers = ((cls.prototype[s] as Function[]) ?? []).filter(
+      (handler) => !options?.skip?.includes(handler.name)
+    );
+    const processed = handlers.reduce(
+      (m, h) => ({
+        ...m,
+        [h.name]: false,
+      }),
+      {}
+    );
+    handlers.forEach(async (handler) => {
+      const value = handler.bind(thisInstance || {})();
       value instanceof Promise && (await value);
+      processed[handler.name] = true;
     });
+    const timer =
+      options?.onComplete &&
+      setInterval(() => {
+        const completed = Object.values(processed).every((p) => p);
+        if (completed) {
+          options.onComplete();
+          clearInterval(timer);
+        }
+      });
   }
 }
 
@@ -333,11 +351,22 @@ export function defined<T>(obj: T, removeEmpty?: boolean): T {
 }
 
 /**
- * Converts a specific value into a {@link Number}.
+ * Converts a specific value into a decimal.
  * @param value the value.
- * @returns `undefined` if converted value is `NaN`.
+ * @returns `undefined` if couldn't convert it.
  */
 export function num(value: any): number | undefined {
-  const val = Number(value);
-  if (!Number.isNaN(val)) return val;
+  if (typeof value === 'number') {
+    return isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === 'string') {
+    value = value.trim();
+    if (/^0x[0-9a-fA-F]+$/.test(value)) {
+      return undefined;
+    }
+  }
+
+  const num = Number(value);
+  return isNaN(num) ? undefined : num;
 }

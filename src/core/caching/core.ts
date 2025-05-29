@@ -264,7 +264,7 @@ export function Cachable<O extends CacheOptions>({
   /**
    * Options for {@link CacheStore}.
    */
-  options?: O;
+  options?: O | (() => O);
   /**
    * Caching event handlers.
    */
@@ -330,7 +330,8 @@ export function Cachable<O extends CacheOptions>({
       const value = func.bind(this)(...args);
       const newValue = value instanceof Promise ? await value : value;
       try {
-        await cacheStore.set(cacheKey.value, newValue, options);
+        const cacheOptions = options instanceof Function ? options() : options;
+        await cacheStore.set(cacheKey.value, newValue, cacheOptions);
       } finally {
         onMiss?.(cacheKey, cacheValue);
       }

@@ -96,8 +96,15 @@ const Container = asSingleton(
   }
 );
 
+const PreConstructSymbol = Symbol('PreConstruct');
 const PostConstructSymbol = Symbol('PostConstruct');
-const PreDestroySymbol = Symbol('PreDestroySymbol');
+const PreDestroySymbol = Symbol('PreDestroy');
+
+/**
+ * Runs the associated method before its {@link Bean}'s initialization
+ * (no `this` binding).
+ */
+export const BeforeInit = Symbolization.createDecorator(PreConstructSymbol);
 
 /**
  * Runs the associated method right after its {@link Bean}'s initialization.
@@ -237,9 +244,14 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
       constructor(...args: any[]) {
         super(...args);
         new Container().add(name ?? cls.name, this, cls);
-        (this as unknown as OnInit).onInit?.();
-        Symbolization.process(cls, PostConstructSymbol, this, {
-          skip: ['onInit'],
+        const onInit = () => {
+          (this as unknown as OnInit).onInit?.();
+          Symbolization.process(cls, PostConstructSymbol, this, {
+            skip: ['onInit'],
+          });
+        };
+        Symbolization.process(cls, PreConstructSymbol, undefined, {
+          onComplete: onInit,
         });
         return this;
       }

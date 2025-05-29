@@ -1,14 +1,14 @@
 import { ProxyDecorator, ProxyStore } from '../../core/http';
-import { getConfigs } from '../helpers';
+import { Configurations } from '../../types';
 
 /**
  * Marks a handler as a proxy.
  */
-export const Proxy = ProxyDecorator(
-  new (class extends ProxyStore {
-    get(key: string) {
-      const configs = getConfigs();
-      return configs.proxy[key.toUpperCase()];
-    }
-  })()
-);
+export const createProxyDecorator = (configs: () => Configurations) =>
+  ProxyDecorator(
+    new (class extends ProxyStore {
+      get(key: string) {
+        return configs()?.proxy?.[key.toUpperCase()];
+      }
+    })()
+  );
