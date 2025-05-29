@@ -32,6 +32,16 @@ export class Context<T = any> {
   }
 
   /**
+   * Retrieves the current value in the storage.
+   * @throws an error if the storage is empty.
+   */
+  getOrThrow<V extends T = T>(): V {
+    const value = this.get<V>();
+    if (value !== undefined) return value;
+    throw new Error(`Context "${this.name}" has no value`);
+  }
+
+  /**
    * Stores a value into the storage.
    * @param value the value.
    */

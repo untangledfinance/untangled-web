@@ -187,18 +187,36 @@ export class Symbolization {
   public static process(
     cls: Class<any>,
     s: symbol,
-    thisInstance: any,
+    thisInstance?: any,
     options?: {
       skip?: string[];
+      onComplete?: () => void;
     }
   ) {
-    ((cls.prototype[s] as Function[]) ?? []).forEach(async (handler) => {
-      if (options?.skip?.includes(handler.name)) {
-        return;
-      }
-      const value = handler.bind(thisInstance)();
+    const handlers = ((cls.prototype[s] as Function[]) ?? []).filter(
+      (handler) => !options?.skip?.includes(handler.name)
+    );
+    const processed = handlers.reduce(
+      (m, h) => ({
+        ...m,
+        [h.name]: false,
+      }),
+      {}
+    );
+    handlers.forEach(async (handler) => {
+      const value = handler.bind(thisInstance || {})();
       value instanceof Promise && (await value);
+      processed[handler.name] = true;
     });
+    const timer =
+      options?.onComplete &&
+      setInterval(() => {
+        const completed = Object.values(processed).every((p) => p);
+        if (completed) {
+          options.onComplete();
+          clearInterval(timer);
+        }
+      });
   }
 }
 
@@ -340,4 +358,15 @@ export function defined<T>(obj: T, removeEmpty?: boolean): T {
 export function num(value: any): number | undefined {
   const val = Number(value);
   if (!Number.isNaN(val)) return val;
+}
+
+export function proxied<T>(get: () => T) {
+  return new Proxy(
+    {},
+    {
+      get: (_, key) => {
+        return get();
+      },
+    }
+  );
 }

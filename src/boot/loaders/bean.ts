@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { Mongo, PollingOptions, poll } from '../../connectors/mongo';
+import { Mongo } from '../../connectors/mongo';
 import { GoogleCloudStorageConnector } from '../../connectors/storage';
 import { asBean } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
@@ -7,15 +7,18 @@ import { StorageConnector } from '../../core/storage';
 import { RbacValidator } from '../../core/rbac';
 import { CacheStore, LocalCacheStore } from '../../core/caching';
 import { RedisOptions, RedisStore } from '../../connectors/caching';
+import { Context } from '../../core/context';
 import { BootLoader } from './types';
-import { getConfigs } from '../helpers';
 import { Configurations } from '../../types';
+
+function getConfigs() {
+  return Context.for<Configurations>('Configs').getOrThrow();
+}
 
 /**
  * Initializes MongoDB connections.
  */
-async function initializeDatabase(pollingOptions?: PollingOptions) {
-  const configs = getConfigs();
+async function initializeDatabase(configs: Configurations) {
   const mongo = new (asBean<Mongo>(Mongo))({
     database: configs.db.name,
     host: configs.db.host,
@@ -24,17 +27,15 @@ async function initializeDatabase(pollingOptions?: PollingOptions) {
     password: configs.db.password,
     tls: configs.db.tls,
   });
-  pollingOptions && poll(mongo, pollingOptions);
   return mongo;
 }
 
 /**
  * Initializes the default {@link StorageConnector}.
  */
-async function initializeStorageConnector() {
+async function initializeStorageConnector(configs: Configurations) {
   const asStorageConnectorBean = (connectorClass: Class<StorageConnector>) =>
     asBean<StorageConnector>(connectorClass, StorageConnector.name);
-  const configs = getConfigs();
   const provider = configs.storage.provider;
   switch (provider?.toLowerCase()) {
     case 'gcp': {
@@ -48,16 +49,14 @@ async function initializeStorageConnector() {
 /**
  * Configures global {@link Jwt}.
  */
-async function configureJwt() {
-  const configs = getConfigs();
+async function configureJwt(configs: Configurations) {
   return new (asBean<Jwt>(Jwt))(configs.jwt.privateKey, configs.jwt.expiry);
 }
 
 /**
  * Initializes Role-based Access-Control settings.
  */
-async function initializeRbac() {
-  const configs = getConfigs();
+async function initializeRbac(configs: Configurations) {
   if (configs.acl.enabled && configs.acl.path) {
     const acl = JSON.parse(fs.readFileSync(configs.acl.path).toString());
     return new (asBean<RbacValidator>(RbacValidator))(acl, true);
@@ -67,8 +66,7 @@ async function initializeRbac() {
 /**
  * Initializes {@link CacheStore} bean.
  */
-async function initializeCacheStore() {
-  const configs = getConfigs();
+async function initializeCacheStore(configs: Configurations) {
   const cacheStore: CacheStore = (() => {
     switch (configs.cache.type?.toLowerCase()) {
       case 'redis':
@@ -97,10 +95,11 @@ export type InitOptions = Partial<{
 }>;
 
 export default ((init) => async () => {
-  init.database && (await initializeDatabase());
-  init.storage && (await initializeStorageConnector());
-  init.jwt && (await configureJwt());
-  init.rbac && (await initializeRbac());
-  init.cache && (await initializeCacheStore());
-  init.new && (await init.new(getConfigs()));
+  const configs = getConfigs();
+  init.database && (await initializeDatabase(configs));
+  init.storage && (await initializeStorageConnector(configs));
+  init.jwt && (await configureJwt(configs));
+  init.rbac && (await initializeRbac(configs));
+  init.cache && (await initializeCacheStore(configs));
+  init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;

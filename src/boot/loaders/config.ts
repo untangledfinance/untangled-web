@@ -1,8 +1,12 @@
-import { BootLoader } from './types';
-import { loadEnvFromJson } from '../../core/config';
+import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
+import { Context } from '../../core/context';
 import { Configurations } from '../../types';
-import { configStore } from '../helpers';
+import { BootLoader } from './types';
+
+function configStore() {
+  return Context.for<ConfigStore>('Configs').getOrThrow();
+}
 
 function defaultConfigs() {
   return {
