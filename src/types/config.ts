@@ -63,8 +63,7 @@ export type Configurations = {
     [chainId: number]: string;
   };
   tx: {
-    evmKey: string;
-    stellarKey: string;
+    [key: string]: string;
   };
   /**
    * Environment variables.
