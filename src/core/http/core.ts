@@ -1,6 +1,6 @@
 import { HttpError } from './error';
 import { profiles, withName } from '../types';
-import { ProxyOptions, ProxyStore } from './proxy';
+import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
 import { createLogger } from '../logging';
 import { HttpContext } from './context';
 
@@ -198,7 +198,7 @@ export function ProxyDecorator(store: ProxyStore) {
           ...route,
           options: {
             ...(route.options ?? {}),
-            proxy: store.get(key),
+            proxy: () => store.get(key),
           },
         } as Route);
         (target as RouteSupport).__routes__ = routes;
@@ -412,8 +412,12 @@ class RoutingConfigurer {
             const proxy =
               options.proxy instanceof ProxyStore
                 ? await options.proxy.get(handler.name)
-                : options.proxy;
-            const proxyUrl = proxy instanceof Promise ? await proxy : proxy;
+                : options.proxy instanceof Function
+                  ? options.proxy()
+                  : options.proxy;
+            const proxyUrl = (
+              proxy instanceof Promise ? await proxy : proxy
+            ) as ProxyURL;
             if (proxyUrl) {
               try {
                 const proxyRes = await fetch(proxyUrl, {
