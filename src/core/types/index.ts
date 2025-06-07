@@ -351,6 +351,14 @@ export function defined<T>(obj: T, removeEmpty?: boolean): T {
 }
 
 /**
+ * Check if a text can be parsed as a decimal or not.
+ * @param value the text.
+ */
+export function isDecimal(value: string) {
+  return /^-?\d+(\.\d+)?$/.test(value);
+}
+
+/**
  * Converts a specific value into a decimal.
  * @param value the value.
  * @returns `undefined` if couldn't convert it.
@@ -361,10 +369,7 @@ export function num(value: any): number | undefined {
   }
 
   if (typeof value === 'string') {
-    value = value.trim();
-    if (/^0x[0-9a-fA-F]+$/.test(value)) {
-      return undefined;
-    }
+    if (!isDecimal(value)) return;
   }
 
   const num = Number(value);
