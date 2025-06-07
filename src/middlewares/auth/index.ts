@@ -35,11 +35,13 @@ export type ReqVerifier<T = any> = (req: AuthReq<T>) =>
     }
   | undefined;
 
+type Permission = string | ((req: Req) => string);
+
 /**
  * Creates a {@link Filter} with a custom {@link ReqVerifier}.
  */
 export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
-  return async (req: AuthReq<T>, res: Res, ...permissions: string[]) => {
+  return async (req: AuthReq<T>, res: Res, ...permissions: Permission[]) => {
     try {
       const { id, email, roles = ['anonymous'] } = verifier(req) ?? {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
@@ -50,8 +52,10 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
           if (accessible) {
             break;
           }
+          const perm =
+            permission instanceof Function ? permission(req) : permission;
           for (const role of roles) {
-            accessible = validator.check(permission, role);
+            accessible = validator.check(perm, role);
             if (accessible) {
               break;
             }
@@ -75,7 +79,7 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
 export async function jwt<T = any>(
   req: AuthReq<T>,
   res: Res,
-  ...permissions: string[]
+  ...permissions: Permission[]
 ) {
   return authFilter<T>(({ headers }) => {
     const authorization = headers?.authorization as string;
@@ -90,7 +94,7 @@ export async function jwt<T = any>(
  *
  * It must be used before any {@link RequestDecorator}-made decorator.
  */
-export function Auth(...permissions: string[]) {
+export function Auth(...permissions: Permission[]) {
   return function (
     target: any,
     propertyKey: string | symbol,
