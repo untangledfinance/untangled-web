@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import qs from 'qs';
-import { Controller, Get, Req } from '../../core/http';
+import { Controller, Get, Group, Module, Req } from '../../core/http';
 import { beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { isDecimal, num } from '../../core/types';
@@ -101,10 +101,48 @@ class QueryParser {
 }
 
 /**
- * Creates a REST {@link Controller} for the given {@link Mongo} instance/bean.
- * @param use {@link Mongo} instance/bean to use.
+ * Response type for the REST {@link Mongo} list query.
  */
-export function createController(use: MongoBean = Mongo) {
+export type MongoListHttpResponse<T = any> = {
+  /**
+   * Contains paginated matching documents of the query.
+   */
+  data: T[];
+  /**
+   * Metadata of the query.
+   */
+  metadata: {
+    /**
+     * The number of matching documents in all pages.
+     */
+    total: number;
+    /**
+     * The current page.
+     */
+    page: number;
+    /**
+     * Size of the current page.
+     */
+    size: number;
+  };
+};
+
+/**
+ * Response type for the REST {@link Mongo} document details query.
+ */
+export type MongoViewHttpResponse<T = any> = {
+  /**
+   * The document details if available; otherwise, `undefined`.
+   */
+  data: T | undefined;
+};
+
+/**
+ * Creates a REST {@link Module} for the given {@link Mongo} instance/bean.
+ * @param use {@link Mongo} instance/bean to use.
+ * @param noAuth to skip authorization (default: false).
+ */
+export function useModule(use: MongoBean = Mongo, noAuth = false) {
   @Controller()
   @Log
   class MongoController {
@@ -124,10 +162,11 @@ export function createController(use: MongoBean = Mongo) {
      */
     @Get('/:collection/:id')
     @Auth((req) => {
+      if (noAuth) return;
       const collection = req.params.collection as string;
       return `${collection}:view`;
     })
-    async findById(req: Req) {
+    async findById(req: Req): Promise<MongoViewHttpResponse> {
       const collection = req.params.collection as string;
       const id = req.params.id as string;
       return {
@@ -142,10 +181,11 @@ export function createController(use: MongoBean = Mongo) {
      */
     @Get('/:collection')
     @Auth((req) => {
+      if (noAuth) return;
       const collection = req.params.collection as string;
       return `${collection}:view`;
     })
-    async find(req: Req) {
+    async find(req: Req): Promise<MongoListHttpResponse> {
       const collection = req.params.collection as string;
       const { size, page, select = '*', ...query } = req.query || {};
       const pageSize = num(size) || 20;
@@ -191,5 +231,13 @@ export function createController(use: MongoBean = Mongo) {
     }
   }
 
-  return MongoController;
+  @Module({
+    controllers: [MongoController],
+  })
+  class MongoModule extends Group {}
+
+  return {
+    MongoController,
+    MongoModule,
+  };
 }

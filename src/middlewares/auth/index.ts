@@ -49,7 +49,9 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
         roles = ['unknown'],
       } = verifier(req) || req._auth || {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
-      const perms = permissions.filter((permission) => !!permission);
+      const perms = permissions
+        .map((perm) => (perm instanceof Function ? perm(req) : perm))
+        .filter((perm) => !!perm);
       const validationSkipped = perms.length === 0 || !validator.enabled;
       let accessible = id && email && validationSkipped;
       if (!validationSkipped) {
@@ -57,9 +59,8 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
           if (accessible) {
             break;
           }
-          const permission = perm instanceof Function ? perm(req) : perm;
           for (const role of roles) {
-            accessible = validator.check(permission, role);
+            accessible = validator.check(perm, role);
             if (accessible) {
               break;
             }
