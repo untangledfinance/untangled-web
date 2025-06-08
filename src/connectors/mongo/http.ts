@@ -136,19 +136,32 @@ export function createController(use: MongoBean = Mongo) {
     })
     async find(req: Req) {
       const collection = req.params.collection as string;
-      const { size, page, ...query } = req.query || {};
+      const { size, page, select, ...query } = req.query || {};
       const pageSize = num(size) || 20;
       const pageNumber = num(page) || 0;
       const offset = pageSize * pageNumber;
       const filter = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
-      this.logger.debug(`Parsed filter: ${JSON.stringify(filter)}`);
+      const fields = ((select as string) || '_id').split(',');
+      const projection = fields.reduce(
+        (project, field) => ({
+          ...project,
+          [field]: true,
+        }),
+        {} as {
+          [field: string]: boolean;
+        }
+      );
+      // TODO: Implement ordering like ?order[desc]=field1,field2&order[asc]=field3,field4.a
+      this.logger.debug(
+        `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Skip ${offset} Limit ${pageSize}`
+      );
 
       const [total, data] = await Promise.all([
         this.collection(collection).countDocuments(filter),
         this.collection(collection)
-          .find(filter)
+          .find(filter, { projection })
           .skip(offset)
           .limit(pageSize)
           .toArray(),
