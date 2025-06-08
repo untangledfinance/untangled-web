@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import qs from 'qs';
 import { Controller, Get, Req } from '../../core/http';
 import { beanOf } from '../../core/ioc';
@@ -38,6 +39,7 @@ class QueryParser {
    */
   static parse(query: Record<string, any>) {
     const filter = {} as Record<string, any>;
+    const order = {} as Record<string, any>;
 
     for (const key in query) {
       if (key === 'or') {
@@ -64,14 +66,24 @@ class QueryParser {
           });
         filter.$or = expressions;
       } else if (typeof query[key] === 'object') {
-        // field[gt]=10&field[lt]=100
         for (const operator in query[key]) {
+          if (key === 'order') {
+            // order[asc]=field1&order[desc]=field2,field3
+            if (['asc', 'desc'].includes(operator)) {
+              for (const field of (query[key][operator] as string).split(',')) {
+                order[field] = operator;
+              }
+              continue;
+            }
+          }
           if (operator === 'in') {
+            // field[in]=1,2,3
             filter[key] = {
               ...filter[key],
               $in: (query[key][operator] as string).split(',').map(this.typify),
             };
           } else {
+            // field[gt]=10&field[lt]=100
             filter[key] = {
               ...filter[key],
               [this.OPERATORS[operator]]: this.typify(query[key][operator]),
@@ -84,7 +96,7 @@ class QueryParser {
       }
     }
 
-    return filter;
+    return { filter, order };
   }
 }
 
@@ -120,8 +132,7 @@ export function createController(use: MongoBean = Mongo) {
       const id = req.params.id as string;
       return {
         data: await this.collection(collection).findOne({
-          // @ts-expect-error
-          _id: id,
+          _id: new mongoose.Types.ObjectId(id),
         }),
       };
     }
@@ -136,32 +147,34 @@ export function createController(use: MongoBean = Mongo) {
     })
     async find(req: Req) {
       const collection = req.params.collection as string;
-      const { size, page, select, ...query } = req.query || {};
+      const { size, page, select = '*', ...query } = req.query || {};
       const pageSize = num(size) || 20;
       const pageNumber = num(page) || 0;
       const offset = pageSize * pageNumber;
-      const filter = QueryParser.parse(
+      const { filter, order } = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
-      const fields = ((select as string) || '_id').split(',');
-      const projection = fields.reduce(
-        (project, field) => ({
-          ...project,
-          [field]: true,
-        }),
-        {} as {
-          [field: string]: boolean;
-        }
-      );
-      // TODO: Implement ordering like ?order[desc]=field1,field2&order[asc]=field3,field4.a
+      const fields = (select as string).split(',');
+      const projection = fields.includes('*')
+        ? undefined // select all
+        : fields.reduce(
+            (project, field) => ({
+              ...project,
+              [field]: true,
+            }),
+            {} as {
+              [field: string]: boolean;
+            }
+          );
       this.logger.debug(
-        `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Skip ${offset} Limit ${pageSize}`
+        `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
 
       const [total, data] = await Promise.all([
         this.collection(collection).countDocuments(filter),
         this.collection(collection)
           .find(filter, { projection })
+          .sort(order)
           .skip(offset)
           .limit(pageSize)
           .toArray(),
