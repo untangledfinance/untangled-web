@@ -43,19 +43,23 @@ type Permission = string | ((req: Req) => string);
 export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
   return async (req: AuthReq<T>, res: Res, ...permissions: Permission[]) => {
     try {
-      const { id, email, roles = ['anonymous'] } = verifier(req) ?? {};
+      const {
+        id,
+        email,
+        roles = ['unknown'],
+      } = verifier(req) || req._auth || {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
-      const validationSkipped = permissions.length === 0 || !validator.enabled;
+      const perms = permissions.filter((permission) => !!permission);
+      const validationSkipped = perms.length === 0 || !validator.enabled;
       let accessible = id && email && validationSkipped;
       if (!validationSkipped) {
-        for (const permission of permissions) {
+        for (const perm of perms) {
           if (accessible) {
             break;
           }
-          const perm =
-            permission instanceof Function ? permission(req) : permission;
+          const permission = perm instanceof Function ? perm(req) : perm;
           for (const role of roles) {
-            accessible = validator.check(perm, role);
+            accessible = validator.check(permission, role);
             if (accessible) {
               break;
             }
