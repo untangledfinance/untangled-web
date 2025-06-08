@@ -2,11 +2,30 @@ import { NullableType, Optional, Supplier } from '../types';
 import { When } from '../validation';
 
 /**
- * Timestamp of 5 minutes later in milliseconds.
+ * Retrieves the moment in milliseconds after a specific interval.
  */
-export function fiveMinutesLater(): number {
-  return Date.now() + 300 * 1e3;
-}
+export const MomentAfter = {
+  /**
+   * @param n number of milliseconds later.
+   */
+  ms: (n: number) => Date.now() + n,
+  /**
+   * @param n number of seconds later.
+   */
+  sec: (n: number) => MomentAfter.ms(n * 1e3),
+  /**
+   * @param n number of minutes later.
+   */
+  min: (n: number) => MomentAfter.sec(n * 60),
+  /**
+   * @param n number of hours later.
+   */
+  hour: (n: number) => MomentAfter.min(n * 60),
+  /**
+   * @param n number of days later.
+   */
+  day: (n: number) => MomentAfter.hour(n * 24),
+};
 
 /**
  * Cached value's options.
@@ -200,7 +219,7 @@ export class LocalCacheStore extends CacheStore<CacheOptions> {
     this.cache.set(key, {
       value,
       options: {
-        expiry: options?.expiry ?? fiveMinutesLater(),
+        expiry: options?.expiry ?? MomentAfter.min(5),
         version: options?.version,
       },
     });
@@ -208,7 +227,7 @@ export class LocalCacheStore extends CacheStore<CacheOptions> {
 
   @When(cacheEnabled)
   override async delete<T>(key: string): Promise<CacheValue<T>> {
-    const value = this.get<T>(key);
+    const value = await this.get<T>(key);
     this.cache.delete(key);
     return value;
   }

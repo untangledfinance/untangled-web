@@ -3,7 +3,7 @@ import {
   CacheOptions,
   CacheStore,
   CacheValue,
-  fiveMinutesLater,
+  MomentAfter,
 } from '../../core/caching';
 import { OnInit, OnStop } from '../../core/ioc';
 import { Log } from '../../core/logging';
@@ -80,9 +80,11 @@ export class RedisStore
   override async set<T>(
     key: string,
     value: T,
-    { version, expiry = Math.floor(fiveMinutesLater() / 1e3) }: CacheOptions
+    { version, expiry = MomentAfter.min(5) }: CacheOptions
   ): Promise<void> {
     try {
+      const ex = Math.floor((expiry - Date.now()) / 1e3); // in seconds
+      if (ex <= 0) return;
       await this.client.set(
         key,
         JSON.stringify({
@@ -90,7 +92,7 @@ export class RedisStore
           version,
         }),
         {
-          EX: expiry,
+          EX: ex,
         }
       );
     } catch (err) {
