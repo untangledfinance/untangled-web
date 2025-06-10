@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 import qs from 'qs';
-import { Controller, Get, Group, Module, Req } from '../../core/http';
+import { Controller, Get, Group, Module } from '../../core/http';
 import { beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
-import { isDecimal, num } from '../../core/types';
-import { Auth } from '../../middlewares/auth';
+import { Action, isDecimal, num } from '../../core/types';
+import { Auth, AuthReq } from '../../middlewares/auth';
 import { Mongo, MongoBean } from './client';
 
 class QueryParser {
@@ -50,6 +50,9 @@ class QueryParser {
           .replace(/^\(|\)$/g, '') // remove parentheses
           .split(',')
           .map((expression) => {
+            // TODO: Handle more complext OR cases
+            //       like or=(asset.price.gt.10,score.lt.(10.5))
+            //            => {$or: [ {'asset.price': {$gt: 10}}, {score: {$lt: 10.5}} ]}
             const [field, operator, value] = expression.split('.');
             if (operator === 'in') {
               return {
@@ -141,11 +144,34 @@ export type MongoViewHttpResponse<T = any> = {
 };
 
 /**
- * Creates a REST {@link Module} for the given {@link Mongo} instance/bean.
- * @param use {@link Mongo} instance/bean to use.
- * @param noAuth to skip authorization (default: false).
+ * Uses {@link Mongo} via REST APIs.
  */
-export function useModule(use: MongoBean = Mongo, noAuth = false) {
+export function useMongoREST(
+  options: Partial<{
+    /**
+     * {@link Mongo} instance/bean to use.
+     */
+    use: MongoBean;
+    /**
+     * Name of the database to use.
+     */
+    dbName?: string;
+    /**
+     * To skip {@link Auth}orization (default: false).
+     */
+    noAuth: boolean;
+  }> = {}
+) {
+  const createCollectionAuthDecorator = (action: Action) => {
+    if (options.noAuth) return () => {};
+    return Auth((req) => {
+      const collection = req.params.collection as string;
+      return `${collection}:${action}`;
+    });
+  };
+  const ViewAuth = createCollectionAuthDecorator('view');
+  const ListAuth = createCollectionAuthDecorator('list');
+
   @Controller()
   @Log
   class MongoController {
@@ -154,22 +180,20 @@ export function useModule(use: MongoBean = Mongo, noAuth = false) {
     /**
      * Retrieves the instance of the given collection.
      * @param name name of the collection.
+     * @param dbName name of the database.
      */
     collection(name: string) {
+      const use = options?.use || Mongo;
       const mongo = use instanceof Mongo ? use : beanOf(use);
-      return mongo.db().collection(name);
+      return mongo.db(options?.dbName).collection(name);
     }
 
     /**
      * Retrieves a document of the given collection by the given `_id`.
      */
     @Get('/:collection/:id')
-    @Auth((req) => {
-      if (noAuth) return;
-      const collection = req.params.collection as string;
-      return `${collection}:view`;
-    })
-    async findById(req: Req): Promise<MongoViewHttpResponse> {
+    @ViewAuth
+    async findById(req: AuthReq): Promise<MongoViewHttpResponse> {
       const collection = req.params.collection as string;
       const id = req.params.id as string;
       return {
@@ -183,12 +207,8 @@ export function useModule(use: MongoBean = Mongo, noAuth = false) {
      * Finds all documents that match the given filter.
      */
     @Get('/:collection')
-    @Auth((req) => {
-      if (noAuth) return;
-      const collection = req.params.collection as string;
-      return `${collection}:view`;
-    })
-    async find(req: Req): Promise<MongoListHttpResponse> {
+    @ListAuth
+    async find(req: AuthReq): Promise<MongoListHttpResponse> {
       const collection = req.params.collection as string;
       const { size, page, select = '*', ...query } = req.query || {};
       const pageSize = num(size) || 20;
@@ -197,18 +217,22 @@ export function useModule(use: MongoBean = Mongo, noAuth = false) {
       const { filter, order } = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
-      const fields = (select as string).split(',');
-      const projection = fields.includes('*')
-        ? undefined // select all
-        : fields.reduce(
-            (project, field) => ({
-              ...project,
-              [field]: true,
-            }),
-            {} as {
-              [field: string]: boolean;
-            }
-          );
+      const fields = (select as string)
+        .split(',')
+        .map((field) => field.trim())
+        .filter((field) => field !== '');
+      const projection =
+        !fields.length || fields.includes('*')
+          ? undefined // select all
+          : fields.reduce(
+              (project, field) => ({
+                ...project,
+                [field]: true,
+              }),
+              {} as {
+                [field: string]: boolean;
+              }
+            );
       this.logger.debug(
         `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
@@ -224,12 +248,12 @@ export function useModule(use: MongoBean = Mongo, noAuth = false) {
       ]);
 
       return {
-        data,
         metadata: {
           total,
           size: pageSize,
           page: pageNumber,
         },
+        data,
       };
     }
   }
@@ -240,7 +264,13 @@ export function useModule(use: MongoBean = Mongo, noAuth = false) {
   class MongoModule extends Group {}
 
   return {
+    /**
+     * A {@link Mongo} REST {@link Controller}.
+     */
     MongoController,
+    /**
+     * A {@link Mongo} REST {@link Module}.
+     */
     MongoModule,
   };
 }

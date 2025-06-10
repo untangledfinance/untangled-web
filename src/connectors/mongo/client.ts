@@ -75,11 +75,14 @@ export class Mongo implements OnInit, OnStop {
    */
   get connected() {
     return (
-      this.instance.connection.readyState ===
+      this.instance.connection?.readyState ===
       mongoose.ConnectionStates.connected
     );
   }
 
+  /**
+   * Connects to the MongoDB server.
+   */
   protected async connect() {
     if (this.connected) return;
     const {
@@ -101,6 +104,9 @@ export class Mongo implements OnInit, OnStop {
     this.logger.info('Connected');
   }
 
+  /**
+   * Disconnects from the MongoDB server.
+   */
   protected async disconnect() {
     if (!this.connected) return;
     await this.instance.disconnect();
@@ -111,6 +117,7 @@ export class Mongo implements OnInit, OnStop {
    * Retrieves a Mongo client.
    */
   get client() {
+    if (!this.connected) throw new Error('Mongo instance not connected');
     return this.instance.connection.getClient() as Omit<
       mongoose.mongo.MongoClient,
       'connect' | 'close'
