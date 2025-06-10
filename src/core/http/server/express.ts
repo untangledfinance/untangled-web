@@ -19,6 +19,7 @@ import { Step } from '../../validation';
 import express from 'express';
 import http from 'http';
 import { createLogger } from '../../logging';
+import { HttpContext } from '../context';
 
 const logger = createLogger('express');
 
@@ -287,10 +288,12 @@ export abstract class Application extends Group implements Server {
       .use(
         (
           req: express.Request,
-          res: express.Response,
+          _: express.Response,
           next: express.NextFunction
         ) => {
-          this.emit('request', Mapper.toReq(req));
+          const r = Mapper.toReq(req);
+          HttpContext.set({ req: r });
+          this.emit('request', r);
           next();
         }
       )
@@ -298,15 +301,13 @@ export abstract class Application extends Group implements Server {
       .all(
         '*',
         async (
-          req: express.Request,
+          _: express.Request,
           res: express.Response,
           next: express.NextFunction
         ) => {
+          const { req } = HttpContext.get();
           this.errorHandler &&
-            this.send(
-              res,
-              await this.errorHandler(new NotFoundError(), Mapper.toReq(req))
-            );
+            this.send(res, await this.errorHandler(new NotFoundError(), req));
           next();
         }
       )

@@ -87,6 +87,7 @@ interface ProfileSupport {
 interface RouteSupport {
   __basePath__?: string;
   __routes__?: Route[];
+  __proxy__?: ProxyOptions;
 }
 
 interface DependencySupport {
@@ -135,11 +136,17 @@ export const Env = (name: string) => Profile(name);
  *
  * @param path base path.
  */
-export function Controller(path?: string) {
+export function Controller(
+  path?: string,
+  options?: {
+    proxy?: ProxyOptions;
+  }
+) {
   return function <T extends Class<any>>(cls: T) {
     return withName(
       class extends cls implements RouteSupport {
         __basePath__ = path;
+        __proxy__ = options?.proxy;
       },
       cls.name
     );
@@ -160,7 +167,7 @@ type ModuleOptions = {
  *
  * @param options module options.
  */
-export function Module(options: Partial<ModuleOptions>) {
+export function Module(options: Partial<ModuleOptions> = {}) {
   return function <T extends Class<any>>(cls: T) {
     return withName(
       class extends cls implements ModuleSupport {
@@ -189,6 +196,12 @@ export function ProxyDecorator(store: ProxyStore) {
       descriptor: TypedPropertyDescriptor<any>
     ) {
       const routes: Route[] = (target as RouteSupport).__routes__ ?? [];
+      const proxy = (target as RouteSupport).__proxy__;
+      if (proxy) {
+        throw new Error(
+          'Could not use handler-level proxy inside a proxied controller'
+        );
+      }
       const found = routes.findIndex(
         (r) => r.handler?.name === descriptor.value?.name
       );
@@ -320,8 +333,13 @@ class RoutingConfigurer {
       ) {
         continue;
       }
-      const { __routes__: routes, __basePath__: basePath } =
-        controller as RouteSupport;
+      const {
+        __routes__: routes,
+        __basePath__: basePath,
+        __proxy__: proxy,
+      } = controller as RouteSupport;
+      // TODO: Add a `Request` route as a proxy pass if `proxy` exists
+      //       In that case, all other routes should be ignored, shouldn't?
       for (const route of routes) {
         const routePath = RoutingConfigurer.normalizeRoutePath(
           ...(basePath ?? '').split('/'),
@@ -390,6 +408,13 @@ class RoutingConfigurer {
         const handleError = RoutingConfigurer.errorAdvisor();
         return async function (req: Req, res: Res = {}): Promise<Res> {
           try {
+            const { req: ctxReq = req } = HttpContext.get() ?? {};
+            req = {
+              ...req,
+              // retain original request's url & path
+              url: ctxReq.url,
+              path: ctxReq.path,
+            };
             for (const filter of filters) {
               const filtered = await filter(req, res);
               res = filtered.res ?? res;
@@ -420,22 +445,28 @@ class RoutingConfigurer {
             ) as ProxyURL;
             if (proxyUrl) {
               try {
+                const proxyHeaders = Object.entries(req.headers ?? {}).reduce(
+                  (h, [k, v]) => {
+                    k = k.toLowerCase();
+                    if (k !== 'host') {
+                      h[k] = [v].flat();
+                    }
+                    return h;
+                  },
+                  {}
+                );
+                const proxyData = !['GET', 'OPTIONS', 'HEAD'].includes(
+                  req.method.toUpperCase()
+                )
+                  ? MediaConverter.serialize(
+                      req.headers['content-type'] as string,
+                      req.body
+                    )
+                  : undefined;
                 const proxyRes = await fetch(proxyUrl, {
                   method: req.method,
-                  headers: Object.entries(req.headers ?? {}).reduce(
-                    (h, [k, v]) => {
-                      if (k.toLowerCase() !== 'host') {
-                        h[k] = [v].flat();
-                      }
-                      return h;
-                    },
-                    {}
-                  ),
-                  body: !['GET', 'OPTIONS', 'HEAD'].includes(
-                    req.method.toUpperCase()
-                  )
-                    ? JSON.stringify(req.body)
-                    : undefined,
+                  headers: proxyHeaders,
+                  body: proxyData,
                 });
                 value = MediaConverter.deserialize(
                   proxyRes.headers.get('Content-Type'),
