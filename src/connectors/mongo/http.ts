@@ -19,6 +19,7 @@ class QueryParser {
     lt: '$lt',
     lte: '$lte',
     in: '$in',
+    like: '$regex',
   };
 
   /**
@@ -67,23 +68,24 @@ class QueryParser {
         filter.$or = expressions;
       } else if (typeof query[key] === 'object') {
         for (const operator in query[key]) {
-          if (key === 'order') {
-            // order[asc]=field1&order[desc]=field2,field3
-            if (['asc', 'desc'].includes(operator)) {
-              for (const field of (query[key][operator] as string).split(',')) {
-                order[field] = operator;
-              }
-              continue;
+          // order[asc]=field1&order[desc]=field2,field3
+          // => {field1: 'asc', field2: 'desc', field3: 'desc'}
+          if (key === 'order' && ['asc', 'desc'].includes(operator)) {
+            for (const field of (query[key][operator] as string).split(',')) {
+              order[field] = operator;
             }
+            continue;
           }
           if (operator === 'in') {
             // field[in]=1,2,3
+            // => {field: {$in: [1, 2, 3]}}
             filter[key] = {
               ...filter[key],
               $in: (query[key][operator] as string).split(',').map(this.typify),
             };
           } else {
             // field[gt]=10&field[lt]=100
+            // => {field: {$gt: 10, $lt: 100}}
             filter[key] = {
               ...filter[key],
               [this.OPERATORS[operator]]: this.typify(query[key][operator]),
@@ -92,6 +94,7 @@ class QueryParser {
         }
       } else {
         // field=value
+        // => {field: 'value'}
         filter[key] = this.typify(query[key]);
       }
     }
