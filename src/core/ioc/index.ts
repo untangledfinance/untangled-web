@@ -1,4 +1,7 @@
+import { createLogger } from '../logging';
 import { classOf, isClass, Symbolization, withClass, withName } from '../types';
+
+const logger = createLogger('ioc');
 
 const AutoSymbol = Symbol.for('__auto__');
 
@@ -216,6 +219,19 @@ export function restart<T>(
      */
     current: new beanType(...args) as T,
   };
+}
+
+/**
+ * Removes all {@link Bean}s.
+ */
+export function shutdown() {
+  beans().forEach((beanName) => {
+    try {
+      destroy(Object, beanName);
+    } catch (err) {
+      logger.error(`${err.message}\n`, err);
+    }
+  });
 }
 
 /**
