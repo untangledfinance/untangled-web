@@ -1,3 +1,4 @@
+import asyncHooks from 'async_hooks';
 import { createLogger } from '../logging';
 import { classOf, isClass, Symbolization, withClass, withName } from '../types';
 
@@ -222,15 +223,37 @@ export function restart<T>(
 }
 
 /**
- * Removes all {@link Bean}s.
+ * Removes all {@link Bean}s and then shuts down.
+ * @param timeout timeout in milliseconds to call `process.exit`.
+ * @see process.exit
  */
-export function shutdown() {
+export function shutdown(timeout = 20000) {
+  const asyncIds = new Set<number>();
+
+  asyncHooks
+    .createHook({
+      init(asyncId, type) {
+        if (type === 'PROMISE') asyncIds.add(asyncId);
+      },
+      destroy(asyncId) {
+        asyncIds.delete(asyncId);
+      },
+    })
+    .enable(); // to track all pending promises
+
   beans().forEach((beanName) => {
     try {
       destroy(Object, beanName);
     } catch (err) {
       logger.error(`${err.message}\n`, err);
     }
+  });
+
+  const exit = setTimeout(process.exit, timeout);
+  setInterval(() => {
+    if (beans().length || asyncIds.size) return;
+    clearTimeout(exit);
+    process.exit();
   });
 }
 
