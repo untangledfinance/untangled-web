@@ -277,8 +277,12 @@ export const Patch = RequestDecorator('PATCH');
 export const Request = RequestDecorator('*');
 
 class MediaConverter {
+  static mediaType(mediaType: MediaType) {
+    return mediaType?.split(';')?.at(0)?.trim()?.toLowerCase();
+  }
+
   static serialize(mediaType: MediaType, value: any) {
-    switch (mediaType) {
+    switch (this.mediaType(mediaType)) {
       case 'application/json':
         return JSON.stringify(value);
     }
@@ -286,7 +290,7 @@ class MediaConverter {
   }
 
   static deserialize(mediaType: MediaType, value: any) {
-    switch (mediaType) {
+    switch (this.mediaType(mediaType)) {
       case 'application/json':
         return value && JSON.parse(value);
     }
