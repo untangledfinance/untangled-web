@@ -213,14 +213,24 @@ export function useMongoREST(
      */
     dbName?: string;
     /**
-     * To skip {@link Auth}orization (default: false).
+     * Authorization options.
      */
-    noAuth: boolean;
+    auth?: Partial<{
+      /**
+       * To skip {@link Auth}orization (default: false).
+       */
+      noAuth: boolean;
+      /***
+       * Accepts no-auth {@link Req}uests.
+       */
+      allowAnonymous: boolean;
+    }>;
   }> = {}
 ) {
   const createCollectionAuthDecorator = (action: Action) => {
-    if (options.noAuth) return () => {};
-    return Auth((req) => {
+    if (options.auth?.noAuth) return () => {};
+    const auth = options.auth?.allowAnonymous ? Auth.AllowAnonymous : Auth;
+    return auth((req) => {
       const collection = req.params.collection as string;
       return `${collection}:${action}`;
     });
@@ -239,7 +249,7 @@ export function useMongoREST(
      * @param dbName name of the database.
      */
     collection(name: string) {
-      const use = options?.use || Mongo;
+      const use = options.use || Mongo;
       const mongo = use instanceof Mongo ? use : beanOf(use);
       return mongo.db(options?.dbName).collection(name);
     }

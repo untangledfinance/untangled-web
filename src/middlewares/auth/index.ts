@@ -11,6 +11,15 @@ import { Role } from '../../core/types';
 import { beanOf } from '../../core/ioc';
 
 /**
+ * No-auth authorization (with role `anonymous`).
+ */
+export const ANONYMOUS = {
+  id: 0,
+  email: 'anonymous',
+  roles: ['anonymous'],
+};
+
+/**
  * An authorized {@link Req}uest.
  */
 export type AuthReq<T = any> = Req<T> & {
@@ -43,11 +52,7 @@ type Permission = string | ((req: Req) => string);
 export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
   return async (req: AuthReq<T>, res: Res, ...permissions: Permission[]) => {
     try {
-      const {
-        id,
-        email,
-        roles = ['unknown'],
-      } = verifier(req) || req._auth || {};
+      const { id, email, roles = [] } = verifier(req) || req._auth || {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
       const perms = permissions
         .map((perm) => (perm instanceof Function ? perm(req) : perm))
@@ -94,6 +99,21 @@ export async function jwt<T = any>(
 }
 
 /**
+ * Same as {@link jwt} but allows no-auth {@link Req}uests.
+ */
+jwt.allowAnonymous = function <T = any>(
+  req: AuthReq<T>,
+  res: Res,
+  ...permissions: Permission[]
+) {
+  return authFilter<T>(({ headers }) => {
+    const authorization = headers?.authorization as string;
+    const token = authorization?.replace(/^[Bb]earer\s+/g, '')?.trim();
+    return beanOf(Jwt).verify(token, true) || ANONYMOUS;
+  })(req, res, ...permissions);
+};
+
+/**
  * Indicates a method as authorization-required.
  * It uses {@link Jwt} verification internally.
  *
@@ -112,3 +132,20 @@ export function Auth(...permissions: Permission[]) {
     };
   };
 }
+
+/**
+ * Same as {@link Auth} but allows no-auth {@link Req}uests.
+ */
+Auth.AllowAnonymous = function (...permissions: Permission[]) {
+  return function (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<any>
+  ) {
+    const handler = descriptor.value;
+    descriptor.value = async function <T>(req: AuthReq<T>, res: Res) {
+      const authorized = await jwt.allowAnonymous<T>(req, res, ...permissions);
+      return handler.bind(this)(authorized.req, authorized.res);
+    };
+  };
+};
