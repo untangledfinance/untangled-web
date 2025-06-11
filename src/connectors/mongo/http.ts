@@ -28,10 +28,67 @@ class QueryParser {
    */
   private static typify(value: any) {
     if ([NaN, null].includes(value)) return null;
-    if ([true, false, 'true', 'false'].includes(value)) return Boolean(value);
+    if (typeof value === 'string' && value.startsWith('str:')) {
+      return value.slice(4);
+    }
+    if ([true, false, 'true', 'false'].includes(value))
+      return value === true || value === 'true';
     if (typeof value === 'number' || isDecimal(value as string))
       return Number(value);
+    if (
+      typeof value === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+    ) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) return date;
+    }
     return value; // String, Array, Object
+  }
+
+  /**
+   * Parses a single OR expression into field, operator, value.
+   * Handles cases like asset.price.gt.10 and score.lt.(10.5)
+   */
+  private static parseOrExpression(
+    expression: string
+  ): { field: string; operator: string; value: any } | null {
+    // Match: field(.fieldN)*.operator.value or value in parenthesis
+    // e.g. asset.price.gt.10 or score.lt.(10.5)
+    //      field: asset.price    operator: gt    value: 10
+    //      field: score          operator: lt    value: 10.5
+    const re = /^(.+?)\.(eq|ne|gt|gte|lt|lte|in|like)\.(\(.+\)|.+)$/;
+    const m = expression.match(re);
+    if (!m) return null;
+    const [, field, operator, value] = m;
+    let parsedValue = value;
+    // Remove parentheses for numbers like (10.5)
+    if (/^\(.+\)$/.test(value)) {
+      parsedValue = value.slice(1, -1);
+    }
+    return { field, operator, value: parsedValue };
+  }
+
+  /**
+   * Splits a string on commas that are not inside parenthesis.
+   * e.g. "(a.b.gt.1,score.lt.(10.5),foo.eq.bar)" => [...]
+   */
+  private static splitTopLevelComma(str: string): string[] {
+    const result: string[] = [];
+    let buf = '';
+    let paren = 0;
+    for (let i = 0; i < str.length; ++i) {
+      const c = str[i];
+      if (c === '(') paren++;
+      if (c === ')') paren--;
+      if (c === ',' && paren === 0) {
+        result.push(buf);
+        buf = '';
+      } else {
+        buf += c;
+      }
+    }
+    if (buf) result.push(buf);
+    return result.map((x) => x.trim()).filter(Boolean);
   }
 
   /**
@@ -44,16 +101,14 @@ class QueryParser {
 
     for (const key in query) {
       if (key === 'or') {
-        // or=(price.gt.10,quantity.lt.5)
-        // => {$or: [ {price: {$gt: 10}}, {quantity: {$lt: 5}} ]}
-        const expressions = (query.or as string)
-          .replace(/^\(|\)$/g, '') // remove parentheses
-          .split(',')
+        // or=(asset.price.gt.10,score.lt.(10.5))
+        // => {$or: [ {'asset.price': {$gt: 10}}, {score: {$lt: 10.5}} ]}
+        const orStr = (query.or as string).replace(/^\(|\)$/g, '');
+        const expressions = this.splitTopLevelComma(orStr)
           .map((expression) => {
-            // TODO: Handle more complext OR cases
-            //       like or=(asset.price.gt.10,score.lt.(10.5))
-            //            => {$or: [ {'asset.price': {$gt: 10}}, {score: {$lt: 10.5}} ]}
-            const [field, operator, value] = expression.split('.');
+            const parsed = this.parseOrExpression(expression);
+            if (!parsed) return null;
+            const { field, operator, value } = parsed;
             if (operator === 'in') {
               return {
                 [field]: {
@@ -67,7 +122,8 @@ class QueryParser {
                 },
               };
             }
-          });
+          })
+          .filter(Boolean);
         filter.$or = expressions;
       } else if (typeof query[key] === 'object') {
         for (const operator in query[key]) {
