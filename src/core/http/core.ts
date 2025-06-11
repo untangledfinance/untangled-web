@@ -308,6 +308,24 @@ class RoutingConfigurer {
   }
 
   /**
+   * Builds query string from query parameters object.
+   * @param query the query parameters.
+   */
+  private static buildQueryString(
+    query: Record<string, string | string[]>
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => params.append(key, v));
+      } else if (value !== undefined && value !== null) {
+        params.append(key, value);
+      }
+    }
+    return params.toString();
+  }
+
+  /**
    * Generates routes for a module.
    * @param module the module.
    */
@@ -467,11 +485,26 @@ class RoutingConfigurer {
                       req.body
                     )
                   : undefined;
-                const proxyRes = await fetch(proxyUrl, {
+
+                let completeProxyUrl = proxyUrl.toString();
+                if (req.query && Object.keys(req.query).length > 0) {
+                  const queryString = RoutingConfigurer.buildQueryString(
+                    req.query
+                  );
+                  if (queryString) {
+                    const separator = completeProxyUrl.includes('?')
+                      ? '&'
+                      : '?';
+                    completeProxyUrl = `${completeProxyUrl}${separator}${queryString}`;
+                  }
+                }
+
+                const proxyRes = await fetch(completeProxyUrl, {
                   method: req.method,
                   headers: proxyHeaders,
                   body: proxyData,
                 });
+
                 value = MediaConverter.deserialize(
                   proxyRes.headers.get('Content-Type'),
                   await proxyRes.text()
