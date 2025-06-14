@@ -351,6 +351,53 @@ export function defined<T>(obj: T, removeEmpty?: boolean): T {
 }
 
 /**
+ * Flattens a given object.
+ * @param obj the object.
+ * @param depth the depth of nested fields's flattening (default: 10).
+ */
+export function flatten<T>(obj: T, depth = 10) {
+  if (Array.isArray(obj)) {
+    return flatten(
+      obj.reduce(
+        (r, v, k) => ({
+          ...r,
+          [k]: v,
+        }),
+        {}
+      ),
+      depth - 1
+    );
+  }
+
+  if (typeof obj === 'object' && obj !== null) {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const flattened = flatten(value, depth - 1);
+      const pk = key.includes('.') ? `(${key})` : key;
+
+      if (Array.isArray(flattened)) {
+        flattened.forEach((v, k) => {
+          result[`${pk}.${k}`] = v;
+        });
+        continue;
+      }
+
+      if (typeof flattened === 'object' && flattened !== null) {
+        for (const [k, v] of Object.entries(flattened)) {
+          result[`${pk}.${k}`] = v;
+        }
+        continue;
+      }
+
+      result[pk] = flattened;
+    }
+    return result;
+  }
+
+  return obj;
+}
+
+/**
  * Check if a text can be parsed as a decimal or not.
  * @param value the text.
  */
