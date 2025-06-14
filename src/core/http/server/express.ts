@@ -25,11 +25,14 @@ const logger = createLogger('express');
 
 class Mapper {
   static toReq(req: express.Request) {
+    const queryStringPosition = req.url.indexOf('?');
     return {
       method: req.method,
       path: req.path,
       headers: req.headers,
       query: req.query as Record<string, string | string[]>,
+      queryString:
+        queryStringPosition >= 0 && req.url.slice(queryStringPosition),
       params: req.params,
       body: req.body,
     } as Req;

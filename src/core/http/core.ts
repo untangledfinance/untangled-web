@@ -23,6 +23,7 @@ export type Req<T = any> = {
   path?: string;
   headers?: Record<string, string | string[]>;
   query?: Record<string, string | string[]>;
+  queryString?: string;
   params?: Record<string, string>;
   body?: T;
 };
@@ -308,24 +309,6 @@ class RoutingConfigurer {
   }
 
   /**
-   * Builds query string from query parameters object.
-   * @param query the query parameters.
-   */
-  private static buildQueryString(
-    query: Record<string, string | string[]>
-  ): string {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-      if (Array.isArray(value)) {
-        value.forEach((v) => params.append(key, v));
-      } else if (value !== undefined && value !== null) {
-        params.append(key, value);
-      }
-    }
-    return params.toString();
-  }
-
-  /**
    * Generates routes for a module.
    * @param module the module.
    */
@@ -488,9 +471,7 @@ class RoutingConfigurer {
 
                 let completeProxyUrl = proxyUrl.toString();
                 if (req.query && Object.keys(req.query).length > 0) {
-                  const queryString = RoutingConfigurer.buildQueryString(
-                    req.query
-                  );
+                  const queryString = req.queryString?.replace(/^\?*/, '');
                   if (queryString) {
                     const separator = completeProxyUrl.includes('?')
                       ? '&'
@@ -498,6 +479,11 @@ class RoutingConfigurer {
                     completeProxyUrl = `${completeProxyUrl}${separator}${queryString}`;
                   }
                 }
+
+                logger.info(`Proxying`, {
+                  from: `${req.path}${req.queryString || ''}`,
+                  to: completeProxyUrl,
+                });
 
                 const proxyRes = await fetch(completeProxyUrl, {
                   method: req.method,
