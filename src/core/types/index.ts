@@ -355,7 +355,12 @@ export function defined<T>(obj: T, removeEmpty?: boolean): T {
  * @param obj the object.
  * @param depth the depth of nested fields's flattening (default: 10).
  */
-export function flatten<T>(obj: T, depth = 10) {
+export function flatten<T>(
+  obj: T,
+  depth = 10,
+  formatter = (value: any) => value
+): T | string {
+  if (depth === 0) return JSON.stringify(formatter(obj));
   if (Array.isArray(obj)) {
     return flatten(
       obj.reduce(
@@ -370,10 +375,20 @@ export function flatten<T>(obj: T, depth = 10) {
   }
 
   if (typeof obj === 'object' && obj !== null) {
+    if (obj instanceof Date) {
+      return formatter(obj);
+    }
+
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {
-      const flattened = flatten(value, depth - 1);
       const pk = key.includes('.') ? `(${key})` : key;
+
+      if (value instanceof Date) {
+        result[pk] = formatter(value);
+        continue;
+      }
+
+      const flattened = flatten(value, depth - 1);
 
       if (Array.isArray(flattened)) {
         flattened.forEach((v, k) => {

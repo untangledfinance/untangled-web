@@ -20,10 +20,13 @@ import express from 'express';
 import http from 'http';
 import { createLogger } from '../../logging';
 import { HttpContext } from '../context';
+import { Readable } from 'stream';
 
 const logger = createLogger('express');
 
-class Mapper {
+const RoutedSymbol = Symbol.for('__routed__');
+
+class Helper {
   static toReq(req: express.Request) {
     const queryStringPosition = req.url.indexOf('?');
     return {
@@ -105,8 +108,19 @@ export abstract class Group implements Router {
   /**
    * Tries sending the {@link Res}.
    */
-  protected send(res: express.Response, { data, status, headers }: Res) {
-    if (!res.writableEnded) {
+  protected send(res: express.Response, response: Res | Response) {
+    if (!res.writableEnded && !(res as any)[RoutedSymbol]) {
+      (res as any)[RoutedSymbol] = true;
+      if (response instanceof Response) {
+        response.headers.forEach((value, key) => {
+          if (key.toLowerCase() !== 'content-encoding') {
+            res.setHeader(key, value);
+          }
+        });
+        res.status(response.status);
+        return Readable.fromWeb(response.body).pipe(res);
+      }
+      const { data, status, headers } = response;
       for (const key of Object.keys(headers ?? {})) {
         res.setHeader(key, headers[key]);
       }
@@ -118,13 +132,16 @@ export abstract class Group implements Router {
     this.router = express.Router();
     if (routes?.length && fetcher) {
       for (const route of routes) {
-        const fetch = fetcher.bind(this)(route);
+        const fetch = fetcher.bind(this)(route) as (
+          req: Req,
+          res: Res
+        ) => Promise<Res | Response>;
         const handler = async (
           req: express.Request,
           res: express.Response,
           next: express.NextFunction
         ) => {
-          this.send(res, await fetch(Mapper.toReq(req), Mapper.toRes(res)));
+          this.send(res, await fetch(Helper.toReq(req), Helper.toRes(res)));
           next();
         };
         const method = route.method;
@@ -165,12 +182,12 @@ export abstract class Group implements Router {
         next: express.NextFunction
       ) => {
         try {
-          this.send(res, await handler(Mapper.toReq(req), Mapper.toRes(res)));
+          this.send(res, await handler(Helper.toReq(req), Helper.toRes(res)));
         } catch (err) {
           if (!(err instanceof HttpError)) {
             logger.error(`${err.message}\n`, err);
           }
-          this.send(res, await this.errorHandler(err, Mapper.toReq(req)));
+          this.send(res, await this.errorHandler(err, Helper.toReq(req)));
         }
         next();
       }
@@ -234,7 +251,7 @@ export abstract class Group implements Router {
           );
         this.router.use(prefix, g.router);
         if (g.corsOptions) {
-          this.router.options(prefix + '*', Mapper.corsHandler(g.corsOptions));
+          this.router.options(prefix + '*', Helper.corsHandler(g.corsOptions));
         }
         break;
       }
@@ -286,7 +303,7 @@ export abstract class Application extends Group implements Server {
     }
     this.emit('start');
     const app = express()
-      .options('*', Mapper.corsHandler(this.corsOptions))
+      .options('*', Helper.corsHandler(this.corsOptions))
       .use(express.json())
       .use(
         (
@@ -294,9 +311,9 @@ export abstract class Application extends Group implements Server {
           _: express.Response,
           next: express.NextFunction
         ) => {
-          const r = Mapper.toReq(req);
-          HttpContext.set({ req: r });
-          this.emit('request', r);
+          const request = Helper.toReq(req);
+          HttpContext.set({ req: request });
+          this.emit('request', request);
           next();
         }
       )
@@ -320,7 +337,7 @@ export abstract class Application extends Group implements Server {
           res: express.Response,
           next: express.NextFunction
         ) => {
-          this.emit('response', Mapper.toReq(req), Mapper.toRes(res));
+          this.emit('response', Helper.toReq(req), Helper.toRes(res));
           next();
         }
       );

@@ -35,6 +35,11 @@ export type Res<T = any> = {
   completed?: boolean;
 };
 
+export type RequestHandler<R = any, T = any> = (
+  req: Req<R>,
+  res: Res<T>
+) => Promise<Res<T> | Response>;
+
 export enum StatusCode {
   OK = 200,
   Created = 201,
@@ -403,7 +408,7 @@ class RoutingConfigurer {
     return {
       routes: RoutingConfigurer.createRoutes(module),
       error: RoutingConfigurer.errorAdvisor(),
-      fetcher: function (route: Route) {
+      fetcher: function (route: Route): RequestHandler {
         const { handler, options, __controller__: controller } = route;
         const contentType: MediaType = options?.produces || 'application/json';
         const headers: Record<string, string | string[]> = {
@@ -411,7 +416,7 @@ class RoutingConfigurer {
           ...(options?.headers || {}),
         };
         const handleError = RoutingConfigurer.errorAdvisor();
-        return async function (req: Req, res: Res = {}): Promise<Res> {
+        return async function (req, res = {}) {
           try {
             const { req: ctxReq = req } = HttpContext.get() ?? {};
             req = {
@@ -484,18 +489,17 @@ class RoutingConfigurer {
                   from: `${req.path}${req.queryString || ''}`,
                   to: completeProxyUrl,
                 });
-
                 const proxyRes = await fetch(completeProxyUrl, {
                   method: req.method,
                   headers: proxyHeaders,
                   body: proxyData,
                 });
+                logger.info(`Proxy completed`, {
+                  to: completeProxyUrl,
+                  status: proxyRes.status,
+                });
 
-                value = MediaConverter.deserialize(
-                  proxyRes.headers.get('Content-Type'),
-                  await proxyRes.text()
-                );
-                status = proxyRes.status;
+                return proxyRes;
               } catch (err) {
                 logger.error(`${err.message}\n`, err);
                 throw new Error('Proxy error');
@@ -508,11 +512,7 @@ class RoutingConfigurer {
             }
             value = value instanceof Promise ? await value : value;
             if (value instanceof Response) {
-              return {
-                data: await value.text(),
-                status: value.status,
-                headers: value.headers as unknown as Record<string, string>,
-              };
+              return value;
             }
             const content = value
               ? MediaConverter.serialize(contentType, value)
@@ -553,7 +553,7 @@ export interface RouteOptions {
   fetcher(
     route: Omit<Route, 'handler'>,
     bound?: Router
-  ): (req: Req, res?: Res) => Promise<Res>;
+  ): (req: Req, res?: Res) => Promise<Res | Response>;
 }
 
 export interface ServeOptions extends RouteOptions {
