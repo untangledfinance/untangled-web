@@ -1,9 +1,15 @@
 import mongoose from 'mongoose';
 import qs from 'qs';
-import { Controller, Get, Group, Module } from '../../core/http';
+import {
+  BadRequestError,
+  Controller,
+  Get,
+  Group,
+  Module,
+} from '../../core/http';
 import { beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
-import { Action, isDecimal, num } from '../../core/types';
+import { Action, flatten, isDecimal, num } from '../../core/types';
 import { Auth, AuthReq } from '../../middlewares/auth';
 import { Mongo, MongoBean } from './client';
 
@@ -255,6 +261,56 @@ export function useMongoREST(
     }
 
     /**
+     * Returns a {@link Response} that attaches a CSV file
+     * for downloading the given data.
+     * @param name name of the CSV file.
+     * @param data the downloading data.
+     * @param columns columns in the CSV file.
+     */
+    csv<T>(name: string, data: T[], ...columns: string[]): Response {
+      if (!columns.length) {
+        throw new BadRequestError('Must select columns to export');
+      }
+
+      let content = '';
+      for (const column of columns) {
+        content += column.includes(',') ? `"${column}",` : `${column},`;
+      }
+      content += '\n';
+      for (const doc of data) {
+        const values = flatten<Record<string, any>>(doc, 10, (val) => {
+          if (val instanceof Date) {
+            return val.toISOString();
+          }
+          if (val instanceof mongoose.Types.ObjectId) {
+            return val.toHexString();
+          }
+          return val;
+        });
+        for (const column of columns) {
+          const value = values[column];
+          if (value === undefined) {
+            content += ',';
+          } else {
+            content += `${value}`.includes(',') ? `"${value}",` : `${value},`;
+          }
+        }
+        content += '\n';
+      }
+
+      return new Response(
+        new File([content], name.endsWith('.csv') ? name : `${name}.csv`, {
+          type: 'text/csv',
+        }),
+        {
+          headers: new Headers({
+            'content-type': 'text/csv',
+          }),
+        }
+      );
+    }
+
+    /**
      * Retrieves a document of the given collection by the given `_id`.
      */
     @Get('/:collection/:id')
@@ -274,12 +330,12 @@ export function useMongoREST(
      */
     @Get('/:collection')
     @ListAuth
-    async find(req: AuthReq): Promise<MongoListHttpResponse> {
+    async find(req: AuthReq) {
       const collection = req.params.collection as string;
-      const { size, page, select = '*', ...query } = req.query || {};
+      const { size, page, select = '*', format, ...query } = req.query || {};
       const pageSize = num(size) || 20;
       const pageNumber = num(page) || 0;
-      const offset = pageSize * pageNumber;
+      const offset = Math.max(pageSize, 0) * Math.max(pageNumber, 0);
       const { filter, order } = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
@@ -299,6 +355,9 @@ export function useMongoREST(
                 [field: string]: boolean;
               }
             );
+      if (projection) {
+        projection['_id'] = !!projection['_id'];
+      }
       this.logger.debug(
         `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
@@ -309,9 +368,14 @@ export function useMongoREST(
           .find(filter, { projection })
           .sort(order)
           .skip(offset)
-          .limit(pageSize)
+          .limit(pageSize > 0 && pageSize)
           .toArray(),
       ]);
+
+      if (format === 'csv' && fields.length) {
+        const fileName = `${collection}_p${page}_s${offset}_${Date.now()}.csv`;
+        return this.csv(fileName, data, ...fields);
+      }
 
       return {
         metadata: {
@@ -320,7 +384,7 @@ export function useMongoREST(
           page: pageNumber,
         },
         data,
-      };
+      } as MongoListHttpResponse;
     }
   }
 
