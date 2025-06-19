@@ -53,7 +53,7 @@ export function Cron(expression: string | CronStore) {
   };
 }
 
-type RunnerEvent = 'started' | 'completed' | 'failed';
+type RunnerEvent = 'started' | 'completed' | 'failed' | 'run' | 'stopped';
 type RunnerStartedHandler = (
   task: string,
   ...data: any[]
@@ -64,7 +64,12 @@ type RunnerCompletedHandler = (
 ) => void | Promise<void>;
 type RunnerFailedHandler = (
   task: string,
-  error: string,
+  error: Error,
+  ...data: any[]
+) => void | Promise<void>;
+type RunnerRunHandler = (task: string, ...data: any[]) => void | Promise<void>;
+type RunnerStoppedHandler = (
+  task: string,
   ...data: any[]
 ) => void | Promise<void>;
 
@@ -128,6 +133,22 @@ export class Runner extends Callable<Promise<void>> {
    */
   onFailed(handler: RunnerFailedHandler) {
     return this.on('failed', handler);
+  }
+
+  /**
+   * Adds a handler for event `run` (`completed` or `failed`).
+   * @param handler the handler.
+   */
+  onRun(handler: RunnerRunHandler) {
+    return this.on('run', handler);
+  }
+
+  /**
+   * Adds a handler for event `stopped`.
+   * @param handler the handler.
+   */
+  onStopped(handler: RunnerStoppedHandler) {
+    return this.on('stopped', handler);
   }
 
   /**
@@ -226,6 +247,7 @@ export function Job<C extends Class<Runner>>(cls: C): C {
       async onStop() {
         for (const cronKey of Object.keys(Manager.getJobs(this))) {
           stop(this, cronKey);
+          this.emit('stopped', cronKey);
         }
       }
 
@@ -264,7 +286,9 @@ export function Job<C extends Class<Runner>>(cls: C): C {
                     once && stop(this, cronKey);
                   } catch (err) {
                     logger.error(`${err.message}\n`, err);
-                    this.emit('failed', cronKey, err.message);
+                    this.emit('failed', cronKey, err);
+                  } finally {
+                    this.emit('run', cronKey);
                   }
                 },
                 null,
