@@ -223,21 +223,32 @@ export function useMongoREST(
      */
     auth?: Partial<{
       /**
-       * To skip {@link Auth}orization (default: false).
+       * To skip {@link Auth}orization for specific collections (or all collections if `true`).
+       * If specific collections are passed, `auth.allowAnonymous` will be always `true`.
        */
-      noAuth: boolean;
+      noAuth: boolean | string | string[];
       /***
-       * Accepts no-auth {@link Req}uests.
+       * Accepts no-auth {@link Req}uests. If `auth.noAuth` is passed, it will be always `true`.
        */
       allowAnonymous: boolean;
     }>;
   }> = {}
 ) {
   const createCollectionAuthDecorator = (action: Action) => {
-    if (options.auth?.noAuth) return () => {};
-    const auth = options.auth?.allowAnonymous ? Auth.AllowAnonymous : Auth;
+    const noAuthCollections = [] as string[];
+    if (options.auth?.noAuth) {
+      if (typeof options.auth.noAuth === 'boolean') return () => {};
+      noAuthCollections.push(
+        ...[options.auth.noAuth].flat().filter((collection) => !!collection)
+      );
+    }
+    const auth =
+      noAuthCollections.length || options.auth?.allowAnonymous
+        ? Auth.AllowAnonymous
+        : Auth;
     return auth((req) => {
       const collection = req.params.collection as string;
+      if (noAuthCollections.includes(collection)) return;
       return `${collection}:${action}`;
     });
   };
