@@ -2,12 +2,13 @@
   "include": ["src"],
   "exclude": ["node_modules"],
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "types": ["node"],
     "paths": {
       "untangled-web/*": ["./dist/*"],
       "untangled-web": ["./dist"]
     },
+    "skipLibCheck": true,
     "experimentalDecorators": true,
     "module": "commonjs",
     "noImplicitOverride": true,

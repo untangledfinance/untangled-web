@@ -118,6 +118,7 @@ export abstract class Group implements Router {
           }
         });
         res.status(response.status);
+        // @ts-ignore
         return Readable.fromWeb(response.body).pipe(res);
       }
       const { data, status, headers } = response;
