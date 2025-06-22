@@ -58,7 +58,7 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
         .map((perm) => (perm instanceof Function ? perm(req) : perm))
         .filter((perm) => !!perm);
       const validationSkipped = perms.length === 0 || !validator.enabled;
-      let accessible = id && email && validationSkipped;
+      let accessible = id !== undefined && validationSkipped;
       if (!validationSkipped) {
         for (const perm of perms) {
           if (accessible) {
