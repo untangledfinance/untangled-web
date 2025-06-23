@@ -37,6 +37,9 @@ class QueryParser {
     if (typeof value === 'string' && value.startsWith('str:')) {
       return value.slice(4);
     }
+    if (typeof value === 'string' && value.startsWith('id:')) {
+      return new mongoose.Types.ObjectId(value.slice(3));
+    }
     if ([true, false, 'true', 'false'].includes(value))
       return value === true || value === 'true';
     if (typeof value === 'number' || isDecimal(value as string))
@@ -121,6 +124,13 @@ class QueryParser {
                   $in: value.split(',').map(this.typify),
                 },
               };
+            } else if (operator === 'like') {
+              return {
+                [field]: {
+                  $regex: this.typify(value),
+                  $options: 'i',
+                },
+              };
             } else {
               return {
                 [field]: {
@@ -147,6 +157,12 @@ class QueryParser {
             filter[key] = {
               ...filter[key],
               $in: (query[key][operator] as string).split(',').map(this.typify),
+            };
+          } else if (operator === 'like') {
+            filter[key] = {
+              ...filter[key],
+              $regex: query[key][operator] as string,
+              $options: 'i',
             };
           } else {
             // field[gt]=10&field[lt]=100
