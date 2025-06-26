@@ -2,6 +2,7 @@ export * as caching from './caching';
 export * as config from './config';
 export * as context from './context';
 export * as encoding from './encoding';
+export * as event from './event';
 export * as http from './http';
 export * as ioc from './ioc';
 export * as jwt from './jwt';
