@@ -5,6 +5,7 @@
   "core/config",
   "core/context",
   "core/encoding",
+  "core/event",
   "core/http",
   "core/ioc",
   "core/jwt",
