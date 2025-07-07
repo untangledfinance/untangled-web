@@ -128,13 +128,38 @@ export abstract class Group implements Router {
         return c.json({ data: 'Response object not fully supported yet' });
       }
       const { data, status, headers } = response;
+      
+      // Set custom headers first
       for (const key of Object.keys(headers ?? {})) {
         const value = headers[key];
         c.header(key, Array.isArray(value) ? value.join(',') : String(value));
       }
+      
+      // Set status
       c.status((status ?? StatusCode.OK) as any);
+      
       if (data !== undefined) {
-        return c.json(data);
+        // Check if Content-Type header is already set
+        const existingContentType = headers && Object.keys(headers).find(
+          key => key.toLowerCase() === 'content-type'
+        );
+        
+        if (!existingContentType) {
+          // Default to application/json if no content-type is set
+          c.header('Content-Type', 'application/json');
+          return c.json(data);
+        } else {
+          // Use existing content-type
+          const contentType = headers[existingContentType];
+          const contentTypeStr = Array.isArray(contentType) ? contentType[0] : String(contentType);
+          
+          if (contentTypeStr.includes('application/json')) {
+            return c.json(data);
+          } else {
+            // For other content types, send as text or binary
+            return c.body(typeof data === 'string' ? data : JSON.stringify(data));
+          }
+        }
       }
       return c.body(null);
     }
