@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
-    "types": ["./node_modules/untangled-web/dist/types"],
+    "paths": {
+      "untangled-web": ["../../dist/index.js"],
+      "untangled-web/*": ["../../dist/*"]
+    },
+
+    "types": ["../../dist/types"],
 
     // Environment setup & latest features
     "lib": ["ESNext"],
