@@ -425,106 +425,141 @@ class RoutingConfigurer {
               url: ctxReq.url,
               path: ctxReq.path,
             };
-            for (const filter of filters) {
-              const filtered = await filter(req, res);
-              res = filtered.res ?? res;
-              req = filtered.req ?? req;
-              if (res.completed) {
+            const next = async (
+              r: { req: Req; res: Res },
+              i = 0
+            ): Promise<{ req: Req; res: Res | Response }> => {
+              if (r.res instanceof Response) return r;
+              if (r.res.completed) {
                 return {
-                  status: StatusCode.OK,
-                  ...res,
-                  headers: {
-                    ...headers,
-                    ...(res.headers ?? {}),
+                  req: r.req,
+                  res: {
+                    status: StatusCode.OK,
+                    ...r.res,
+                    headers: {
+                      ...headers,
+                      ...(r.res.headers ?? {}),
+                    },
                   },
                 }; // no need to handle completed request
               }
-            }
-            HttpContext.set({ req });
 
-            let value = null;
-            let status = options?.status;
-            const proxy =
-              options.proxy instanceof ProxyStore
-                ? await options.proxy.get(handler.name)
-                : options.proxy instanceof Function
-                  ? options.proxy()
-                  : options.proxy;
-            const proxyUrl = (
-              proxy instanceof Promise ? await proxy : proxy
-            ) as ProxyURL;
-            if (proxyUrl) {
-              try {
-                const proxyHeaders = Object.entries(req.headers ?? {}).reduce(
-                  (h, [k, v]) => {
+              const filter = filters[i];
+              if (filter) {
+                const filtered = await filter(r.req, r.res, (rq, rs) =>
+                  next({ req: rq, res: rs }, i + 1)
+                );
+                if (filtered.res instanceof Response) return filtered;
+                if (filtered.res.completed)
+                  return {
+                    req: filtered.req,
+                    res: {
+                      status: StatusCode.OK,
+                      ...filtered.res,
+                      headers: {
+                        ...headers,
+                        ...(filtered.res.headers ?? {}),
+                      },
+                    },
+                  };
+              }
+
+              HttpContext.set({ req: r.req });
+
+              let value = null;
+              let status = options?.status;
+              const proxy =
+                options.proxy instanceof ProxyStore
+                  ? await options.proxy.get(handler.name)
+                  : options.proxy instanceof Function
+                    ? options.proxy()
+                    : options.proxy;
+              const proxyUrl = (
+                proxy instanceof Promise ? await proxy : proxy
+              ) as ProxyURL;
+              if (proxyUrl) {
+                try {
+                  const proxyHeaders = Object.entries(
+                    r.req.headers ?? {}
+                  ).reduce((h, [k, v]) => {
                     k = k.toLowerCase();
                     if (k !== 'host') {
                       h[k] = [v].flat();
                     }
                     return h;
-                  },
-                  {}
-                );
-                const proxyData = !['GET', 'OPTIONS', 'HEAD'].includes(
-                  req.method.toUpperCase()
-                )
-                  ? MediaConverter.serialize(
-                      req.headers['content-type'] as string,
-                      req.body
-                    )
-                  : undefined;
+                  }, {});
+                  const proxyData = !['GET', 'OPTIONS', 'HEAD'].includes(
+                    r.req.method.toUpperCase()
+                  )
+                    ? MediaConverter.serialize(
+                        r.req.headers['content-type'] as string,
+                        r.req.body
+                      )
+                    : undefined;
 
-                let completeProxyUrl = proxyUrl.toString();
-                if (req.query && Object.keys(req.query).length > 0) {
-                  const queryString = req.queryString?.replace(/^\?*/, '');
-                  if (queryString) {
-                    const separator = completeProxyUrl.includes('?')
-                      ? '&'
-                      : '?';
-                    completeProxyUrl = `${completeProxyUrl}${separator}${queryString}`;
+                  let completeProxyUrl = proxyUrl.toString();
+                  if (r.req.query && Object.keys(r.req.query).length > 0) {
+                    const queryString = r.req.queryString?.replace(/^\?*/, '');
+                    if (queryString) {
+                      const separator = completeProxyUrl.includes('?')
+                        ? '&'
+                        : '?';
+                      completeProxyUrl = `${completeProxyUrl}${separator}${queryString}`;
+                    }
                   }
+
+                  logger.info(`Proxying`, {
+                    from: `${r.req.path}${r.req.queryString || ''}`,
+                    to: completeProxyUrl,
+                  });
+                  const proxyRes = await fetch(completeProxyUrl, {
+                    method: r.req.method,
+                    headers: proxyHeaders,
+                    body: proxyData,
+                  });
+                  logger.info(`Proxy completed`, {
+                    to: completeProxyUrl,
+                    status: proxyRes.status,
+                  });
+
+                  return {
+                    req: r.req,
+                    res: proxyRes,
+                  };
+                } catch (err) {
+                  logger.error(`${err.message}\n`, err);
+                  throw new Error('Proxy error');
                 }
-
-                logger.info(`Proxying`, {
-                  from: `${req.path}${req.queryString || ''}`,
-                  to: completeProxyUrl,
-                });
-                const proxyRes = await fetch(completeProxyUrl, {
-                  method: req.method,
-                  headers: proxyHeaders,
-                  body: proxyData,
-                });
-                logger.info(`Proxy completed`, {
-                  to: completeProxyUrl,
-                  status: proxyRes.status,
-                });
-
-                return proxyRes;
-              } catch (err) {
-                logger.error(`${err.message}\n`, err);
-                throw new Error('Proxy error');
+              } else if (handler) {
+                value = (controller ? handler.bind(controller) : handler)(
+                  r.req,
+                  r.res
+                );
               }
-            } else if (handler) {
-              value = (controller ? handler.bind(controller) : handler)(
-                req,
-                res
-              );
-            }
-            value = value instanceof Promise ? await value : value;
-            if (value instanceof Response) {
-              return value;
-            }
-            const content = value
-              ? MediaConverter.serialize(contentType, value)
-              : null;
-            return {
-              data: content,
-              status: status ?? StatusCode.OK,
-              headers: {
-                ...headers,
-                ...(res.headers ?? {}),
-              },
+              value = value instanceof Promise ? await value : value;
+              if (value instanceof Response) {
+                return {
+                  req: r.req,
+                  res: value,
+                };
+              }
+              const content = value
+                ? MediaConverter.serialize(contentType, value)
+                : null;
+              return {
+                req: r.req,
+                res: {
+                  data: content,
+                  status: status ?? StatusCode.OK,
+                  headers: {
+                    ...headers,
+                    ...(res.headers ?? {}),
+                  },
+                },
+              };
             };
+            const r = await next({ req, res });
+            return r.res;
           } catch (err) {
             if (!(err instanceof HttpError)) {
               logger.error(`${err.message}\n`, err);
@@ -579,16 +614,27 @@ export interface CorsOptions {
   maxAge: number | string;
 }
 
+export type Next<T = any> = (
+  req: Req<T>,
+  res: Res,
+  next?: Next<T>,
+  ...args: any[]
+) => Promise<{
+  req: Req<T>;
+  res: Res | Response;
+}>;
+
 /**
  * Filters a {@link Req}uest before actually handling it.
  */
 export type Filter<T = any> = (
   req: Req<T>,
   res: Res,
+  next?: Next<T>,
   ...args: any[]
 ) => Promise<{
   req: Req<T>;
-  res: Res;
+  res: Res | Response;
 }>;
 
 export type Handler = (req: Req, res: Res) => Promise<Res>;

@@ -50,7 +50,7 @@ type Permission = string | ((req: Req) => string);
  * Creates a {@link Filter} with a custom {@link ReqVerifier}.
  */
 export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
-  return async (req: AuthReq<T>, res: Res, ...permissions: Permission[]) => {
+  return async (req: AuthReq<T>, res: Res, _, ...permissions: Permission[]) => {
     try {
       const { id, email, roles = [] } = verifier(req) || req._auth || {};
       const validator = beanOf(RbacValidator, true) ?? new RbacValidator();
@@ -95,7 +95,7 @@ export async function jwt<T = any>(
     const authorization = headers?.authorization as string;
     const token = authorization?.replace(/^[Bb]earer\s+/g, '')?.trim();
     return beanOf(Jwt).verify(token);
-  })(req, res, ...permissions);
+  })(req, res, undefined, ...permissions);
 }
 
 /**
@@ -110,7 +110,7 @@ jwt.allowAnonymous = function <T = any>(
     const authorization = headers?.authorization as string;
     const token = authorization?.replace(/^[Bb]earer\s+/g, '')?.trim();
     return beanOf(Jwt).verify(token, true) || ANONYMOUS;
-  })(req, res, ...permissions);
+  })(req, res, undefined, ...permissions);
 };
 
 /**
