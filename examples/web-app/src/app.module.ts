@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 @Boot(
   bootLoaders.config(),
   bootLoaders.bean({
+    cache: true,
     database: true,
     jwt: true,
   })

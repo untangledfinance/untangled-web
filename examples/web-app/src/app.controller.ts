@@ -1,9 +1,15 @@
 import { Controller, Get, Request, type Req } from 'untangled-web/core/http';
 import { AppService } from './app.service';
+import { ReqCache } from './app.util';
+import { Log, Logger } from 'untangled-web/core/logging';
 
 @Controller()
+@Log
 export class AppController {
-  constructor(private readonly appService = new AppService()) {}
+  constructor(
+    private readonly logger: Logger,
+    private readonly appService = new AppService()
+  ) {}
 
   @Request('/echo')
   async echo(req: Req) {
@@ -18,5 +24,14 @@ export class AppController {
   @Get('/error')
   async error() {
     throw new Error('Whoops!');
+  }
+
+  @Get('/cache')
+  @ReqCache.Auto(5000)
+  async cache() {
+    this.logger.debug('Executing...');
+    return {
+      currentTime: await this.currentTime(),
+    };
   }
 }

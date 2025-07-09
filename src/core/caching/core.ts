@@ -263,10 +263,17 @@ function SimpleCacheKeyGenerator(...args: any[]) {
   return [...args].join('#');
 }
 
+export type RenewableCacheOptions = CacheOptions & {
+  /**
+   * To support refreshing the cache automatically not not.
+   */
+  renewable?: boolean;
+};
+
 /**
  * Marks a class method as be able to cached.
  */
-export function Cachable<O extends CacheOptions>({
+export function Cachable<O extends RenewableCacheOptions>({
   key,
   store,
   options,
@@ -298,6 +305,7 @@ export function Cachable<O extends CacheOptions>({
     onHit: (cacheKey: CacheKey, cacheValue: CacheValue<any>) => void;
   }>;
 } = {}) {
+  const renewers = {} as Record<string, NodeJS.Timeout>;
   return function (
     target: any,
     propertyKey: string | symbol,
@@ -338,6 +346,20 @@ export function Cachable<O extends CacheOptions>({
         func.name,
         ...args,
       ]);
+      const cacheOptions = options instanceof Function ? options() : options;
+      const renew = async () => {
+        const value = func.bind(this)(...args);
+        const newValue = value instanceof Promise ? await value : value;
+        await cacheStore.set(cacheKey.value, newValue, cacheOptions);
+        return newValue;
+      };
+      if (cacheOptions?.renewable && cacheOptions?.expiry) {
+        const renewer = renewers[cacheKey.value];
+        if (!renewer) {
+          const delay = cacheOptions.expiry - Date.now();
+          renewers[cacheKey.value] = setInterval(renew, delay);
+        }
+      }
       const cacheValue = await cacheStore.get<any>(cacheKey.value);
       if (cacheValue.hit) {
         try {
@@ -346,15 +368,11 @@ export function Cachable<O extends CacheOptions>({
           onHit?.(cacheKey, cacheValue);
         }
       }
-      const value = func.bind(this)(...args);
-      const newValue = value instanceof Promise ? await value : value;
       try {
-        const cacheOptions = options instanceof Function ? options() : options;
-        await cacheStore.set(cacheKey.value, newValue, cacheOptions);
+        return renew();
       } finally {
         onMiss?.(cacheKey, cacheValue);
       }
-      return newValue;
     };
     descriptor.value = cachable;
   };
