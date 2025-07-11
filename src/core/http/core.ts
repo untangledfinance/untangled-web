@@ -549,6 +549,7 @@ class RoutingConfigurer {
               return {
                 req: r.req,
                 res: {
+                  completed: true,
                   data: content,
                   status: status ?? StatusCode.OK,
                   headers: {
