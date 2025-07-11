@@ -25,12 +25,22 @@ export type Configurations = {
     enabled?: boolean;
   };
   db: {
-    name?: string;
-    host?: string;
-    port?: number;
-    username?: string;
-    password?: string;
-    tls?: boolean;
+    mongo: {
+      name?: string;
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      tls?: boolean;
+    };
+    postgres: {
+      name?: string;
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      tls?: boolean;
+    };
   };
   cache: {
     enabled?: boolean;

@@ -43,12 +43,22 @@ function defaultConfigs() {
       enabled: (process.env['ACL_ENABLED'] as string) === 'true',
     },
     db: {
-      name: process.env['DATABASE_NAME'],
-      host: process.env['DATABASE_HOST'],
-      port: parseInt(process.env['DATABASE_PORT'] as string),
-      username: process.env['DATABASE_USERNAME'],
-      password: process.env['DATABASE_PASSWORD'],
-      tls: process.env['DATABASE_TLS'] === 'true',
+      mongo: {
+        name: process.env['DATABASE_NAME'],
+        host: process.env['DATABASE_HOST'],
+        port: parseInt(process.env['DATABASE_PORT'] as string),
+        username: process.env['DATABASE_USERNAME'],
+        password: process.env['DATABASE_PASSWORD'],
+        tls: process.env['DATABASE_TLS'] === 'true',
+      },
+      postgres: {
+        name: process.env['PGDATABASE'],
+        host: process.env['PGHOST'],
+        port: parseInt(process.env['PGPORT'] as string),
+        username: process.env['PGUSERNAME'],
+        password: process.env['PGPASSWORD'],
+        tls: process.env['PGSSL'] === 'true',
+      },
     },
     cache: {
       enabled: (process.env['CACHE_ENABLED'] as string) === 'true',

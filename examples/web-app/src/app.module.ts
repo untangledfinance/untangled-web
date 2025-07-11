@@ -8,7 +8,9 @@ import { AppController } from './app.controller';
   bootLoaders.config(),
   bootLoaders.bean({
     cache: true,
-    database: true,
+    database: {
+      mongo: true,
+    },
     jwt: true,
   })
 )

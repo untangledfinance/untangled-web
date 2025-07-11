@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { Mongo } from '../../connectors/mongo';
+import { Postgres } from '../../connectors/postgres';
 import { GoogleCloudStorageConnector } from '../../connectors/storage';
 import { asBean } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
@@ -18,16 +19,31 @@ function getConfigs() {
 /**
  * Initializes MongoDB connections.
  */
-async function initializeDatabase(configs: Configurations) {
+async function initializeMongoDatabase(configs: Configurations) {
   const mongo = new (asBean<Mongo>(Mongo))({
-    database: configs.db.name,
-    host: configs.db.host,
-    port: configs.db.port,
-    username: configs.db.username,
-    password: configs.db.password,
-    tls: configs.db.tls,
+    database: configs.db.mongo.name,
+    host: configs.db.mongo.host,
+    port: configs.db.mongo.port,
+    username: configs.db.mongo.username,
+    password: configs.db.mongo.password,
+    tls: configs.db.mongo.tls,
   });
   return mongo;
+}
+
+/**
+ * Initializes PostgreSQL connections.
+ */
+async function initializePostgresDatabase(configs: Configurations) {
+  const postgres = new (asBean<Postgres>(Postgres))({
+    database: configs.db.postgres.name,
+    host: configs.db.postgres.host,
+    port: configs.db.postgres.port,
+    username: configs.db.postgres.username,
+    password: configs.db.postgres.password,
+    tls: configs.db.postgres.tls,
+  });
+  return postgres;
 }
 
 /**
@@ -86,7 +102,10 @@ async function initializeCacheStore(configs: Configurations) {
 }
 
 export type InitOptions = Partial<{
-  database: boolean;
+  database: Partial<{
+    mongo: boolean;
+    postgres: boolean;
+  }>;
   storage: boolean;
   jwt: boolean;
   rbac: boolean;
@@ -96,7 +115,8 @@ export type InitOptions = Partial<{
 
 export default ((init) => async () => {
   const configs = getConfigs();
-  init.database && (await initializeDatabase(configs));
+  init.database?.mongo && (await initializeMongoDatabase(configs));
+  init.database?.postgres && (await initializePostgresDatabase(configs));
   init.storage && (await initializeStorageConnector(configs));
   init.jwt && (await configureJwt(configs));
   init.rbac && (await initializeRbac(configs));
