@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Mongo } from '../../connectors/mongo';
-import { Postgres } from '../../connectors/postgres';
+import { EntityType, Postgres } from '../../connectors/postgres';
 import { GoogleCloudStorageConnector } from '../../connectors/storage';
 import { asBean } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
@@ -34,15 +34,21 @@ async function initializeMongoDatabase(configs: Configurations) {
 /**
  * Initializes PostgreSQL connections.
  */
-async function initializePostgresDatabase(configs: Configurations) {
-  const postgres = new (asBean<Postgres>(Postgres))({
-    database: configs.db.postgres.name,
-    host: configs.db.postgres.host,
-    port: configs.db.postgres.port,
-    username: configs.db.postgres.username,
-    password: configs.db.postgres.password,
-    tls: configs.db.postgres.tls,
-  });
+async function initializePostgresDatabase(
+  configs: Configurations,
+  ...entities: EntityType[]
+) {
+  const postgres = new (asBean<Postgres>(Postgres))(
+    {
+      database: configs.db.postgres.name,
+      host: configs.db.postgres.host,
+      port: configs.db.postgres.port,
+      username: configs.db.postgres.username,
+      password: configs.db.postgres.password,
+      tls: configs.db.postgres.tls,
+    },
+    ...entities
+  );
   return postgres;
 }
 
@@ -102,21 +108,59 @@ async function initializeCacheStore(configs: Configurations) {
 }
 
 export type InitOptions = Partial<{
+  /**
+   * Initializes databases.
+   */
   database: Partial<{
+    /**
+     * MongoDB.
+     */
     mongo: boolean;
-    postgres: boolean;
+    /**
+     * PostgreSQL.
+     */
+    postgres:
+      | boolean
+      | {
+          /**
+           * Accepted Postgres entities.
+           */
+          entities: EntityType[];
+        };
   }>;
+  /**
+   * Storage.
+   */
   storage: boolean;
+  /**
+   * JSON Web Token.
+   */
   jwt: boolean;
+  /**
+   * Role-based Access Control.
+   */
   rbac: boolean;
+  /**
+   * Caching.
+   */
   cache: boolean;
+  /**
+   * Initializes additional beans.
+   * @param configs used configurations for the initializations.
+   */
   new: <T extends Configurations>(configs: T) => Promise<void>;
 }>;
 
 export default ((init) => async () => {
   const configs = getConfigs();
   init.database?.mongo && (await initializeMongoDatabase(configs));
-  init.database?.postgres && (await initializePostgresDatabase(configs));
+  if (init.database?.postgres) {
+    const entities =
+      typeof init.database.postgres === 'object'
+        ? init.database.postgres.entities
+        : [];
+    await initializePostgresDatabase(configs, ...entities);
+  }
   init.storage && (await initializeStorageConnector(configs));
   init.jwt && (await configureJwt(configs));
   init.rbac && (await initializeRbac(configs));
