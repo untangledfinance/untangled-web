@@ -1,5 +1,6 @@
-import postgres from 'postgres';
-import { beanOf } from '../../core/ioc';
+import { DataSource, EntityManager, ObjectLiteral, Repository } from 'typeorm';
+import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
+import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 
 /**
@@ -12,23 +13,55 @@ export type PostgresOptions = {
   password: string;
   database: string;
   tls: boolean;
-} & postgres.Options<Record<string, postgres.PostgresType>>;
+};
+
+/**
+ * Model type (an Entity class).
+ */
+export type EntityType<T extends ObjectLiteral> = { new (...args: any[]): T };
 
 /**
  * A Postgres instance.
  */
 @Log
-export class Postgres {
+export class Postgres implements OnInit, OnStop {
   private readonly logger: Logger;
   private readonly options: Partial<PostgresOptions>;
-  private readonly instance: postgres.Sql;
+  private readonly instance: DataSource;
 
   constructor(options: Partial<PostgresOptions>) {
-    this.instance = postgres({
-      ...options,
-      ssl: options.ssl || options.tls,
+    this.instance = new DataSource({
+      type: 'postgres',
+      host: options.host,
+      port: options.port,
+      username: options.username,
+      password: options.password,
+      database: options.database,
+      ssl: options.tls,
     });
     this.options = options;
+  }
+
+  get connected() {
+    return this.instance.isInitialized;
+  }
+
+  protected async connect() {
+    if (this.connected) return;
+    await this.instance.initialize();
+  }
+
+  protected async disconnect() {
+    if (!this.connected) return;
+    await this.instance.destroy();
+  }
+
+  async onInit() {
+    await this.connect();
+  }
+
+  async onStop() {
+    await this.disconnect();
   }
 
   /**
@@ -48,6 +81,27 @@ export class Postgres {
       database: name,
     }).client;
   }
+
+  /**
+   * Creates a repository model.
+   * @param entity type of the model (an Entity class).
+   */
+  model<T extends ObjectLiteral>(entity: EntityType<T>) {
+    return this.instance.getRepository<T>(entity);
+  }
+
+  /**
+   * Executes a function in a transaction.
+   * @param run the function.
+   * @param isolationLevel isolation level of the transaction.
+   */
+  tx<T>(
+    run: (em: EntityManager) => Promise<T>,
+    isolationLevel?: IsolationLevel
+  ) {
+    if (isolationLevel) return this.instance.transaction(isolationLevel, run);
+    return this.instance.transaction(run);
+  }
 }
 
 /**
@@ -56,15 +110,78 @@ export class Postgres {
 export type PostgresBean = Class<Postgres> | Postgres | string;
 
 /**
- * Creates a function for executing SQL commands using given {@link Postgres} type.
+ * Creates a model with specific name using given {@link Postgres} type.
+ * @param entity type of the model (an Entity class).
  */
-export function Sql(options?: {
-  /**
-   * {@link Postgres} instance/bean to use.
-   */
-  use: PostgresBean;
-}) {
+export function Model<T extends ObjectLiteral>(
+  entity: EntityType<T>,
+  options?: {
+    /**
+     * {@link Postgres} instance/bean to use.
+     */
+    use: PostgresBean;
+  }
+) {
   const use = options?.use ?? Postgres;
-  const instance = use instanceof Postgres ? use : beanOf(use);
-  return instance.client;
+  const model = () => {
+    const postgres = use instanceof Postgres ? use : beanOf(use);
+    return postgres.model(entity);
+  };
+  return new Proxy(
+    {},
+    {
+      get: (_, key) => {
+        if (key === 'use') {
+          return (postgres: PostgresBean = use) =>
+            Model(entity, { use: postgres });
+        }
+        if (key === 'Entity') {
+          return entity;
+        }
+        return model()[key];
+      },
+    }
+  ) as unknown as Repository<T> & {
+    /**
+     * Uses another {@link Postgres} instance/bean if specified.
+     */
+    use: (postgres?: PostgresBean) => Repository<T>;
+    /**
+     * Returns the associated entity class of the model.
+     */
+    Entity: EntityType<T>;
+  };
+}
+
+/**
+ * Only executes the method inside a {@link Postgres} transaction.
+ */
+export function Transactional(
+  options?: Partial<{
+    /**
+     * Isolation level of the transaction.
+     */
+    isolationLevel: IsolationLevel;
+    /**
+     * {@link Postgres} instance/bean to use.
+     */
+    use: PostgresBean;
+  }>
+) {
+  return function (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<any>
+  ) {
+    const use = options?.use ?? Postgres;
+    const func = descriptor.value;
+    const transactional = async function (...args: any[]) {
+      const postgres = use instanceof Postgres ? use : beanOf(use);
+      return postgres.tx(
+        () => func.bind(this)(...args),
+        options?.isolationLevel
+      );
+    };
+    descriptor.value = transactional;
+  };
 }
