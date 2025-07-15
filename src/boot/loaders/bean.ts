@@ -46,6 +46,7 @@ async function initializePostgresDatabase(
       username: configs.db.postgres.username,
       password: configs.db.postgres.password,
       tls: configs.db.postgres.tls,
+      migrationRoot: configs.db.postgres.migrationRoot,
     },
     ...entities
   );

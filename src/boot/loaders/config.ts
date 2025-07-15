@@ -8,7 +8,7 @@ function configStore() {
   return Context.for<ConfigStore>('Configs').getOrThrow();
 }
 
-function defaultConfigs() {
+function defaultConfigs(): Partial<Configurations> {
   return {
     app: {
       name: (process.env['NAME'] as string) || 'Application',
@@ -58,6 +58,7 @@ function defaultConfigs() {
         username: process.env['PGUSERNAME'],
         password: process.env['PGPASSWORD'],
         tls: process.env['PGSSL'] === 'true',
+        migrationRoot: process.env['PGMIGRATIONS'] ?? 'migrations',
       },
     },
     cache: {
