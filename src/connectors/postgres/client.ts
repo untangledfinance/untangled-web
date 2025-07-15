@@ -3,6 +3,7 @@ import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { EntityManagerContext } from './context';
+import { Migrations } from './utils';
 
 /**
  * PostgreSQL connection options.
@@ -14,6 +15,7 @@ export type PostgresOptions = {
   password: string;
   database: string;
   tls: boolean;
+  migrationRoot: string;
 };
 
 /**
@@ -45,6 +47,10 @@ export class Postgres implements OnInit, OnStop {
       database: options.database,
       ssl: options.tls,
       entities,
+      migrations: Migrations.from(options.migrationRoot, {
+        debug: process.env['DEBUG'] === 'true',
+      }),
+      migrationsRun: !!options.migrationRoot,
     });
     this.options = options;
     this.entities = entities;
@@ -113,6 +119,7 @@ export class Postgres implements OnInit, OnStop {
    * Executes a function in a transaction.
    * @param run the function.
    * @param isolationLevel isolation level of the transaction.
+   * @param propagationType propagation type of the transaction (default: new).
    */
   tx<T>(
     run: () => Promise<T>,
@@ -197,6 +204,10 @@ export function Transactional(
      */
     isolationLevel: IsolationLevel;
     /**
+     * Propagation type of the transaction (default: new).
+     */
+    propagationType: PropagationType;
+    /**
      * {@link Postgres} instance/bean to use.
      */
     use: PostgresBean;
@@ -213,7 +224,8 @@ export function Transactional(
       const postgres = use instanceof Postgres ? use : beanOf(use);
       return postgres.tx(
         () => func.bind(this)(...args),
-        options?.isolationLevel
+        options?.isolationLevel,
+        options?.propagationType
       );
     };
     descriptor.value = transactional;

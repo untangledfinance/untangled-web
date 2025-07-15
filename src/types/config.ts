@@ -40,6 +40,7 @@ export type Configurations = {
       username?: string;
       password?: string;
       tls?: boolean;
+      migrationRoot?: string;
     };
   };
   cache: {
