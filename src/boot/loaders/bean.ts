@@ -11,6 +11,8 @@ import { RedisOptions, RedisStore } from '../../connectors/caching';
 import { Context } from '../../core/context';
 import { BootLoader } from './types';
 import { Configurations } from '../../types';
+import { Queue } from '../../core/queue';
+import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
 
 function getConfigs() {
   return Context.for<Configurations>('Configs').getOrThrow();
@@ -94,11 +96,11 @@ async function initializeCacheStore(configs: Configurations) {
     switch (configs.cache.type?.toLowerCase()) {
       case 'redis':
         return new (asBean<CacheStore>(RedisStore, CacheStore.name))({
-          host: configs.redis.host,
-          port: configs.redis.port,
-          username: configs.redis.username,
-          password: configs.redis.password,
-          database: configs.redis.database,
+          host: configs.db.redis.host,
+          port: configs.db.redis.port,
+          username: configs.db.redis.username,
+          password: configs.db.redis.password,
+          database: configs.db.redis.database,
         } as RedisOptions);
       default:
         return new (asBean<CacheStore>(LocalCacheStore, CacheStore.name))();
@@ -106,6 +108,28 @@ async function initializeCacheStore(configs: Configurations) {
   })();
   configs.cache.enabled && cacheStore.enable();
   return cacheStore;
+}
+
+async function initializeMessageQueue(
+  configs: Configurations,
+  reliable?: boolean
+) {
+  const queueConnector = (() => {
+    switch (configs.queue.type?.toLocaleLowerCase()) {
+      case 'redis':
+        return new (asBean<Queue>(
+          reliable ? ReliableRedisQueue : RedisQueue,
+          Queue.name
+        ))({
+          host: configs.queue.redis.host,
+          port: configs.queue.redis.port,
+          username: configs.queue.redis.username,
+          password: configs.queue.redis.password,
+          database: configs.queue.redis.database,
+        });
+    }
+  })();
+  return queueConnector;
 }
 
 export type InitOptions = Partial<{
@@ -146,6 +170,19 @@ export type InitOptions = Partial<{
    */
   cache: boolean;
   /**
+   * Message queue.
+   */
+  queue: Partial<{
+    /**
+     * Enables reliable queue.
+     */
+    reliable: boolean;
+    /**
+     * Redis Queue.
+     */
+    redis: boolean;
+  }>;
+  /**
    * Initializes additional beans.
    * @param configs used configurations for the initializations.
    */
@@ -166,5 +203,6 @@ export default ((init) => async () => {
   init.jwt && (await configureJwt(configs));
   init.rbac && (await initializeRbac(configs));
   init.cache && (await initializeCacheStore(configs));
+  init.queue && (await initializeMessageQueue(configs, init.queue.reliable));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;

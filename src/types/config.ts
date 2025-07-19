@@ -42,17 +42,27 @@ export type Configurations = {
       tls?: boolean;
       migrationRoot?: string;
     };
+    redis: {
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      database?: number;
+    };
   };
   cache: {
     enabled?: boolean;
     type?: string;
   };
-  redis: {
-    host?: string;
-    port?: number;
-    username?: string;
-    password?: string;
-    database?: number;
+  queue: {
+    type: string;
+    redis: {
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      database?: number;
+    };
   };
   storage: {
     provider?: string;

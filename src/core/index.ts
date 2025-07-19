@@ -8,6 +8,7 @@ export * as ioc from './ioc';
 export * as jwt from './jwt';
 export * as logging from './logging';
 export * as notify from './notify';
+export * as queue from './queue';
 export * as rbac from './rbac';
 export * as scheduling from './scheduling';
 export * as storage from './storage';

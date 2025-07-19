@@ -60,17 +60,27 @@ function defaultConfigs(): Partial<Configurations> {
         tls: process.env['PGSSL'] === 'true',
         migrationRoot: process.env['PGMIGRATIONS'],
       },
+      redis: {
+        host: process.env['REDIS_HOST'],
+        port: parseInt(process.env['REDIS_PORT'] ?? '6379'),
+        username: process.env['REDIS_USERNAME'],
+        password: process.env['REDIS_PASSWORD'],
+        database: parseInt(process.env['REDIS_DATABASE'] as string),
+      },
     },
     cache: {
       enabled: (process.env['CACHE_ENABLED'] as string) === 'true',
       type: process.env['CACHE_TYPE'],
     },
-    redis: {
-      host: process.env['REDIS_HOST'],
-      port: parseInt(process.env['REDIS_PORT'] ?? '6379'),
-      username: process.env['REDIS_USERNAME'],
-      password: process.env['REDIS_PASSWORD'],
-      database: parseInt(process.env['REDIS_DATABASE'] as string),
+    queue: {
+      type: process.env['QUEUE_TYPE'],
+      redis: {
+        host: process.env['REDIS_QUEUE_HOST'],
+        port: parseInt(process.env['REDIS_QUEUE_PORT'] ?? '6379'),
+        username: process.env['REDIS_QUEUE_USERNAME'],
+        password: process.env['REDIS_QUEUE_PASSWORD'],
+        database: parseInt(process.env['REDIS_QUEUE_DATABASE'] as string),
+      },
     },
     storage: {
       provider: process.env['STORAGE_PROVIDER'],

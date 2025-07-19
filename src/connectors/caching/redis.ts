@@ -44,14 +44,27 @@ export class RedisStore
     });
   }
 
+  async connect() {
+    try {
+      await this.client.connect();
+      this.logger.info('Connected');
+    } catch (err) {
+      this.logger.error(`Connection failed: ${err.message}`);
+      throw err;
+    }
+  }
+
+  async disconnect() {
+    await this.client.disconnect();
+    this.logger.info('Disconnected');
+  }
+
   async onInit() {
-    await this.client.connect();
-    this.logger.info('Connected');
+    await this.connect();
   }
 
   async onStop() {
-    await this.client.disconnect();
-    this.logger.info('Disconnected');
+    await this.disconnect();
   }
 
   override async get<T>(
