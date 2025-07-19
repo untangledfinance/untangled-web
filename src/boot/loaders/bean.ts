@@ -13,6 +13,8 @@ import { BootLoader } from './types';
 import { Configurations } from '../../types';
 import { Queue } from '../../core/queue';
 import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
+import { Publisher, Subscriber } from '../../core/pubsub';
+import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
 
 function getConfigs() {
   return Context.for<Configurations>('Configs').getOrThrow();
@@ -132,6 +134,38 @@ async function initializeMessageQueue(
   return queueConnector;
 }
 
+async function initializePublisher(configs: Configurations) {
+  const publisher = (() => {
+    switch (configs.pubsub.type?.toLocaleLowerCase()) {
+      case 'redis':
+        return new (asBean<Publisher>(RedisPublisher, Publisher.name))({
+          host: configs.pubsub.redis.host,
+          port: configs.pubsub.redis.port,
+          username: configs.pubsub.redis.username,
+          password: configs.pubsub.redis.password,
+          database: configs.pubsub.redis.database,
+        });
+    }
+  })();
+  return publisher;
+}
+
+async function initializeSubscriber(configs: Configurations) {
+  const subscriber = (() => {
+    switch (configs.pubsub.type?.toLocaleLowerCase()) {
+      case 'redis':
+        return new (asBean<Subscriber>(RedisSubscriber, Subscriber.name))({
+          host: configs.pubsub.redis.host,
+          port: configs.pubsub.redis.port,
+          username: configs.pubsub.redis.username,
+          password: configs.pubsub.redis.password,
+          database: configs.pubsub.redis.database,
+        });
+    }
+  })();
+  return subscriber;
+}
+
 export type InitOptions = Partial<{
   /**
    * Initializes databases.
@@ -183,6 +217,15 @@ export type InitOptions = Partial<{
     redis: boolean;
   }>;
   /**
+   * Pub-Sub.
+   */
+  pubsub: Partial<{
+    /**
+     * Redis Pub-Sub.
+     */
+    redis: boolean;
+  }>;
+  /**
    * Initializes additional beans.
    * @param configs used configurations for the initializations.
    */
@@ -204,5 +247,10 @@ export default ((init) => async () => {
   init.rbac && (await initializeRbac(configs));
   init.cache && (await initializeCacheStore(configs));
   init.queue && (await initializeMessageQueue(configs, init.queue.reliable));
+  init.pubsub &&
+    (await Promise.all([
+      initializePublisher(configs),
+      initializeSubscriber(configs),
+    ]));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;

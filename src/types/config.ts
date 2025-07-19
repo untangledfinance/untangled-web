@@ -64,6 +64,16 @@ export type Configurations = {
       database?: number;
     };
   };
+  pubsub: {
+    type: string;
+    redis: {
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      database?: number;
+    };
+  };
   storage: {
     provider?: string;
     bucketName?: string;
