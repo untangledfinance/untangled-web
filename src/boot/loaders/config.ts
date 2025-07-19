@@ -82,6 +82,16 @@ function defaultConfigs(): Partial<Configurations> {
         database: parseInt(process.env['REDIS_QUEUE_DATABASE'] as string),
       },
     },
+    pubsub: {
+      type: process.env['PUBSUB_TYPE'],
+      redis: {
+        host: process.env['REDIS_PUBSUB_HOST'],
+        port: parseInt(process.env['REDIS_PUBSUB_PORT'] ?? '6379'),
+        username: process.env['REDIS_PUBSUB_USERNAME'],
+        password: process.env['REDIS_PUBSUB_PASSWORD'],
+        database: parseInt(process.env['REDIS_PUBSUB_DATABASE'] as string),
+      },
+    },
     storage: {
       provider: process.env['STORAGE_PROVIDER'],
       bucketName: process.env['STORAGE_BUCKET_NAME'],
