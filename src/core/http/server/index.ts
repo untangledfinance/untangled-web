@@ -1,14 +1,12 @@
 import { notImplementedYet } from '../../types';
 import { Router, Server } from '../core';
 import * as express from './express';
-import * as fastify from './fastify';
 
 /**
  * Types of the embedded HTTP Server.
  */
 enum ServerType {
   Express = 'express',
-  Fastify = 'fastify',
 }
 
 /**
@@ -25,11 +23,6 @@ function useServer(type: ServerType = ServerType.Express): {
       return {
         Application: express.Application,
         Group: express.Group,
-      };
-    case ServerType.Fastify:
-      return {
-        Application: fastify.Application,
-        Group: fastify.Group,
       };
     default:
       throw notImplementedYet();

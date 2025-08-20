@@ -437,3 +437,18 @@ export function num(value: any): number | undefined {
   const num = Number(value);
   return isNaN(num) ? undefined : num;
 }
+
+/**
+ * Silently ignores all errors when invoking a function.
+ * @param func the function.
+ * @returns a silent function which returns `undefined` on errors.
+ */
+export function silent<T extends Function>(func: T): T {
+  return ((...args: any[]) => {
+    try {
+      return func.bind(this)(...args);
+    } catch {
+      return;
+    }
+  }) as unknown as T;
+}
