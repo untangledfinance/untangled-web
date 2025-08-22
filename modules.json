@@ -21,6 +21,7 @@
   "core/validation",
   "connectors/caching",
   "connectors/ethers",
+  "connectors/graph",
   "connectors/mongo",
   "connectors/postgres",
   "connectors/pubsub",
