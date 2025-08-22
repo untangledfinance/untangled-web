@@ -40,6 +40,21 @@ declare global {
    * @param message the message.
    */
   var log: (message: string, ...args: any[]) => void;
+  /**
+   * Emits a message to specific channels.
+   * @param message the message.
+   * @param channels the channels' identifiers to send the message to.
+   */
+  var emit: <T>(message: T, ...channels: string[]) => Promise<void>;
+  /**
+   * Prepares handling messages received from specific channels.
+   * @param handler the function to handle received messages.
+   * @param channels the channels' identifiers to listen to.
+   */
+  var on: <T>(
+    handler: (message: T, channel: string) => void | Promise<void>,
+    ...channels: string[]
+  ) => Promise<void>;
 }
 
 export {};

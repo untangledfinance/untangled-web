@@ -1,8 +1,8 @@
-import { config, ioc, logging } from './core';
+import { config, event, ioc, logging, pubsub } from './core';
 import { Configurations } from './types';
 
 ///
-/// `console.log` Overrides.
+/// Logging utilities.
 ///
 
 const useLogger = () => {
@@ -12,6 +12,45 @@ const useLogger = () => {
   } catch {}
   return logger;
 };
+
+///
+/// Event utilities.
+///
+
+const usePublisher = () => {
+  let publisher = {
+    async publish<T>(message: T, ...channels: string[]) {
+      channels.forEach((channel) => event.emit(channel, message));
+    },
+  };
+  try {
+    publisher = ioc.beanOf(pubsub.Publisher);
+  } catch {}
+  return publisher;
+};
+
+const useSubscriber = () => {
+  let subscriber = {
+    async subscribe<T>(
+      handler: (message: T, channel: string) => void | Promise<void>,
+      ...channels: string[]
+    ) {
+      channels.forEach((channel) =>
+        event.on(channel, (e: { key: string; data: T }) =>
+          handler(e.data, e.key)
+        )
+      );
+    },
+  };
+  try {
+    subscriber = ioc.beanOf(pubsub.Subscriber);
+  } catch {}
+  return subscriber;
+};
+
+///
+/// `console.log` overrides.
+///
 
 const asLoggingArgs = (data: any[]): [string, ...any[]] => {
   const message = typeof data.at(0) === 'string' ? data.at(0) : '--';
@@ -37,6 +76,17 @@ globalThis.$ = ioc.beanOf; // support global invocation with '$' symbol
 globalThis.log = (message: string, ...args: any[]) => {
   const logger = useLogger();
   return logger.log(logging.LogLevel.INFO, message, ...args);
+};
+globalThis.emit = async <T>(message: T, ...channels: string[]) => {
+  const publisher = usePublisher();
+  return publisher.publish(message, ...channels);
+};
+globalThis.on = async <T>(
+  handler: (message: T, channel: string) => void | Promise<void>,
+  ...channels: string[]
+) => {
+  const subscriber = useSubscriber();
+  return subscriber.subscribe(handler, ...channels);
 };
 
 ///
