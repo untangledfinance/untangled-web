@@ -1,3 +1,4 @@
+import pino from 'pino';
 import { notImplementedYet, withName } from '../types';
 
 export enum LogLevel {
@@ -38,41 +39,87 @@ export class Logger {
   }
 }
 
-class SimpleLogger extends Logger {
-  get now() {
-    return new Date().toISOString();
-  }
-
+/**
+ * A {@link Logger} which simply uses `console.log` to print message out.
+ */
+export class SimpleLogger extends Logger {
   override log(level: LogLevel, message: string, ...args: any[]) {
     const nameMaxLength = 6;
     const name = this.name
       ? `[${this.name.padEnd(nameMaxLength, '.').slice(0, nameMaxLength)}]`
       : '--';
-    console.log(`${this.now} ${level.padEnd(5)} ${name} ${message}`, ...args);
+    const now = new Date().toISOString();
+    console.log(`${now} ${level.padEnd(5)} ${name} ${message}`, ...args);
+  }
+}
+
+export class PinoLogger extends Logger {
+  private readonly logger: pino.Logger;
+
+  constructor(
+    name?: string,
+    options?: pino.LoggerOptions | pino.DestinationStream
+  ) {
+    super(name);
+    this.logger = pino({
+      name,
+      level: 'debug',
+      ...(options || {}),
+    });
+  }
+
+  override log(level: LogLevel, message: string, ...args: any[]) {
+    const log = (() => {
+      switch (level) {
+        case LogLevel.DEBUG:
+          return this.logger.debug;
+        case LogLevel.INFO:
+          return this.logger.info;
+        case LogLevel.ERROR:
+          return this.logger.error;
+        case LogLevel.WARN:
+          return this.logger.warn;
+      }
+    })().bind(this.logger);
+
+    if (args.length) {
+      log(`${message} -- %o`, args);
+    } else {
+      log(message);
+    }
   }
 }
 
 /**
  * Quickly creates a {@link Logger}.
  * @param name name of the {@link Logger}.
+ * @param type type of the {@link Logger} (default: {@link PinoLogger}).
  */
-export function createLogger(name?: string): Logger {
-  return new SimpleLogger(name);
+export function createLogger(
+  name?: string,
+  type: Class<Logger> = PinoLogger
+): Logger {
+  return new type(name);
 }
 
 /**
  * Injects a {@link Logger} when instantiating a class.
  * @param cls the class.
  * @param name name of the {@link Logger}.
+ * @param type type of the {@link Logger}.
  */
-export function Log<T>(cls: Class<T> | AbstractClass<T>, name?: string) {
+export function Log<T>(
+  cls: Class<T> | AbstractClass<T>,
+  name?: string,
+  type?: Class<Logger>
+) {
   return withName(
     class extends (cls as Class<any>) {
       readonly logger: Logger;
 
       constructor(...args: any[]) {
         super(...args);
-        this.logger = createLogger(name ?? cls.name);
+        this.logger = createLogger(name ?? cls.name, type);
       }
     } as Class<
       T & {
