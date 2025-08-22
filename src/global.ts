@@ -17,3 +17,8 @@ globalThis.log = (message: string, ...args: any[]) => {
   } catch {}
   return logger.log(logging.LogLevel.INFO, message, ...args);
 };
+
+// https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
+BigInt.prototype['toJSON'] = function () {
+  return this.toString();
+};
