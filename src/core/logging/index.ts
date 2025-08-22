@@ -52,7 +52,9 @@ export class SimpleLogger extends Logger {
     console.log(`${now} ${level.padEnd(5)} ${name} ${message}`, ...args);
   }
 }
-
+/**
+ * A `pino`-embedded {@link Logger}.
+ */
 export class PinoLogger extends Logger {
   private readonly logger: pino.Logger;
 
@@ -83,7 +85,7 @@ export class PinoLogger extends Logger {
     })().bind(this.logger);
 
     if (args.length) {
-      log(`${message} -- %o`, args);
+      log({ data: args }, message);
     } else {
       log(message);
     }
@@ -130,4 +132,10 @@ export function Log<T>(
   );
 }
 
-export default createLogger();
+/**
+ * The default {@link Logger}.
+ * @see createLogger
+ */
+export const LOGGER = createLogger();
+
+export default LOGGER;
