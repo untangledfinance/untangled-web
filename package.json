@@ -32,6 +32,7 @@
     "build": "bun run clean && bunx tsc --outDir ./dist",
     "format": "prettier --write \"./(src|scripts|examples)/**/*.(ts|js|json)\" \"./*.(ts|js|json)\"",
     "precommit": "lint-staged",
+    "bump": "bun run ./scripts/bump.ts --name untangled-web --registry registry.npmjs.org",
     "prepare": "bunx husky"
   },
   "dependencies": {
