@@ -4,6 +4,8 @@ import { classOf, isClass, Symbolization, withClass, withName } from '../types';
 
 const logger = createLogger('ioc');
 
+const SingletonSymbol = Symbol.for('__singleton__');
+const BeanSymbol = Symbol.for('__bean__');
 const AutoSymbol = Symbol.for('__auto__');
 
 /**
@@ -24,118 +26,165 @@ export function asSingleton<C extends Class<any>>(cls: C) {
     } as C,
     cls.name
   );
+  Object.defineProperty(singleton, SingletonSymbol, {
+    writable: false,
+    value: true,
+  });
   return singleton;
+}
+
+/**
+ * Checks if a class is singleton or not.
+ * @param cls the class.
+ */
+export function isSingleton<T>(cls: Class<T>) {
+  return cls[SingletonSymbol] === true;
 }
 
 /**
  * An Inversion-of-Control container.
  */
-const Container = asSingleton(
-  class extends Map<string, any> {
-    /**
-     * Retrieves an instance with a given name from the container.
-     * @param name the name.
-     * @param filter only return the instance if the condition mets.
-     * @returns the found instance.
-     * @throws an error if no instance found.
-     */
-    override get<T>(name: string, filter?: (bean: T) => boolean) {
-      const instance = super.get(name) as T;
-      const found = (filter || ((bean: T) => !!bean))(instance);
-      if (found) {
-        return instance;
-      }
-      throw new Error(`Bean "${name}" not found`);
-    }
+class _Container {
+  protected readonly beans: Map<string, any>;
 
-    /**
-     * {@link get} but without throwing an error when no instance found.
-     */
-    unsafeGet<T>(name: string, filter?: (bean: T) => boolean): T | undefined {
-      try {
-        return this.get<T>(name, filter);
-      } catch {}
-    }
+  constructor() {
+    this.beans = new Map<string, any>();
+  }
 
-    /**
-     * Adds an instance with a given name into the container.
-     * @param name the name.
-     * @param instance the instance.
-     * @returns the added instance.
-     * @throws an error if a instance with the same name exists.
-     */
-    add<T>(name: string, instance: T, cls: Class<T> | AbstractClass<T>) {
-      if (super.has(name)) {
-        throw new Error(`Bean "${name}" exists`);
-      }
-      super.set(name, withClass(instance, cls as Class<T>));
+  /**
+   * All registered beans' names.
+   */
+  get names() {
+    return [...this.beans.keys()];
+  }
+
+  /**
+   * Finds all beans that match a given filter.
+   * @param filter the bean filter by name and instance.
+   */
+  find(filter?: (name: string, instance: any) => boolean) {
+    return Object.entries(this.beans)
+      .filter(([name, instance]) => (filter ? filter(name, instance) : true))
+      .reduce(
+        (m, [name, instance]) => ({ ...m, [name]: instance }),
+        {} as Record<string, any>
+      );
+  }
+
+  /**
+   * Retrieves an instance with a given name from the container.
+   * @param name the name.
+   * @param filter only return the instance if the condition mets.
+   * @returns the found instance.
+   * @throws an error if no instance found.
+   */
+  get<T>(name: string, filter?: (bean: T) => boolean) {
+    const instance = this.beans.get(name) as T;
+    const found = (filter || ((bean: T) => !!bean))(instance);
+    if (found) {
       return instance;
     }
+    throw new Error(`Bean "${name}" not found`);
+  }
 
-    /**
-     * Removes an instance from the container.
-     * @param name name of the instance.
-     */
-    remove<T>(name: string) {
-      if (super.has(name)) {
-        const instance = super.get(name) as T;
-        if (super.delete(name)) {
-          return {
-            /**
-             * Name of the removed instance.
-             */
-            name,
-            /**
-             * The instance.
-             */
-            instance,
-            /**
-             * Class of the instance.
-             */
-            type: classOf(instance),
-          };
-        }
+  /**
+   * {@link get} but without throwing an error when no instance found.
+   */
+  unsafeGet<T>(name: string, filter?: (bean: T) => boolean): T | undefined {
+    try {
+      return this.get<T>(name, filter);
+    } catch {}
+  }
+
+  /**
+   * Adds an instance with a given name into the container.
+   * @param name the name.
+   * @param instance the instance.
+   * @returns the added instance.
+   * @throws an error if a instance with the same name exists.
+   */
+  add<T>(name: string, instance: T, cls: Class<T> | AbstractClass<T>) {
+    if (this.beans.has(name)) {
+      throw new Error(`Bean "${name}" exists`);
+    }
+    this.beans.set(name, withClass(instance, cls as Class<T>));
+    return instance;
+  }
+
+  /**
+   * Removes an instance from the container.
+   * @param name name of the instance.
+   */
+  remove<T>(name: string) {
+    if (this.beans.has(name)) {
+      const instance = this.beans.get(name) as T;
+      if (this.beans.delete(name)) {
+        return {
+          /**
+           * Name of the removed instance.
+           */
+          name,
+          /**
+           * The instance.
+           */
+          instance,
+          /**
+           * Class of the instance.
+           */
+          type: classOf(instance),
+        };
       }
     }
   }
-);
+}
+
+/**
+ * The singleton IoC container.
+ */
+const Container = new _Container();
 
 const PreConstructSymbol = Symbol('PreConstruct');
 const PostConstructSymbol = Symbol('PostConstruct');
 const PreDestroySymbol = Symbol('PreDestroy');
 
 /**
- * Runs the associated method before its {@link Bean}'s initialization
+ * Runs the associated method before its bean's initialization
  * (no `this` binding).
  */
 export const BeforeInit = Symbolization.createDecorator(PreConstructSymbol);
 
 /**
- * Runs the associated method right after its {@link Bean}'s initialization.
+ * Runs the associated method right after its bean's initialization.
  */
 export const AfterInit = Symbolization.createDecorator(PostConstructSymbol);
 export interface OnInit {
+  /**
+   * Should execute right after a bean's initialization.
+   */
   onInit(): Promise<void>;
 }
 
 /**
- * Runs the associated method right before its {@link Bean}'s deletion.
+ * Runs the associated method right before its bean's deletion.
  */
 export const PreDestroy = Symbolization.createDecorator(PreDestroySymbol);
 export interface OnStop {
+  /**
+   * Should execute right before a bean's deletion.
+   */
   onStop(): Promise<void>;
 }
 
 /**
- * Retrieves all initialized {@link Bean}s' registered names
- * in the default IoC {@link Container}.
+ * Retrieves all initialized beans' registrations in the {@link Container}.
+ * @param filter the bean filter by name and instance.
  */
-export function beans() {
-  return [...new Container().keys()];
+export function beans(filter?: (name: string, instance: any) => boolean) {
+  return Container.find(filter);
 }
 
 /**
- * Retrieves the instance of a {@link Bean} class.
+ * Retrieves the instance of a bean class.
  * @param cls the class or its name.
  * @param unsafe not throwing error if no instance found.
  * @throws an error if no instance found.
@@ -153,15 +202,14 @@ export function beanOf<T>(cls: Class<T> | string, unsafe?: boolean) {
   if ((clz as any)[AutoSymbol]) {
     new clz();
   }
-  return unsafe
-    ? new Container().unsafeGet<T>(clz.name)
-    : new Container().get<T>(clz.name);
+  const name = clz.name;
+  return unsafe ? Container.unsafeGet<T>(name) : Container.get<T>(name);
 }
 
 /**
- * Attaches a {@link Bean} class before trying to retrieve its instance.
+ * Attaches a bean class before trying to retrieve its instance.
  * @param cls the class.
- * @returns the {@link beanOf} function that accepts the {@link Bean} name.
+ * @returns the {@link beanOf} function that accepts the bean name.
  */
 beanOf.type = <T>(cls: Class<T> | AbstractClass<T>) => {
   return (name: string, unsafe?: boolean) => {
@@ -174,20 +222,19 @@ beanOf.type = <T>(cls: Class<T> | AbstractClass<T>) => {
 };
 
 /**
- * Removes a specific {@link Bean} if it exists.
- * @param cls class of the {@link Bean}.
- * @param name a specific name of the {@link Bean}.
- * @param filter only remove the {@link Bean} if the condition mets.
- * @throws an {@link Error} if the {@link Bean} couldn't be found.
+ * Removes a specific bean if it exists.
+ * @param cls class of the bean.
+ * @param name a specific name of the bean.
+ * @param filter only remove the bean if the condition mets.
+ * @throws an {@link Error} if the bean couldn't be found.
  */
 export function destroy<T>(
   cls: Class<T> | AbstractClass<T>,
   name?: string,
   filter?: (instance: T) => boolean
 ) {
-  const container = new Container();
   const beanName = name ?? cls.name;
-  const bean = container.unsafeGet<T>(beanName, filter);
+  const bean = Container.unsafeGet<T>(beanName, filter);
   if (!bean) {
     return {
       name: beanName,
@@ -195,7 +242,7 @@ export function destroy<T>(
       type: cls as Class<T>,
     };
   }
-  const removed = container.remove<T>(beanName);
+  const removed = Container.remove<T>(beanName);
   if (!removed) {
     throw new Error(`Deletion for bean "${beanName}" could not be processed`);
   }
@@ -208,10 +255,10 @@ export function destroy<T>(
 }
 
 /**
- * Restarts a {@link Bean} by {@link destroy}ing it and
+ * Restarts a bean by {@link destroy}ing it and
  * re-creating a new one with the same type.
- * @param cls class of the {@link Bean}.
- * @param name a specific name of the {@link Bean}.
+ * @param cls class of the bean.
+ * @param name a specific name of the bean.
  * @param args arguments for re-initialization.
  */
 export function restart<T>(
@@ -227,18 +274,18 @@ export function restart<T>(
   const beanType = asBean(type, beanName);
   return {
     /**
-     * The removed instance of the {@link Bean}.
+     * The removed instance of the bean.
      */
     previous: instance as T,
     /**
-     * The newly-created instance of the {@link Bean}.
+     * The newly-created instance of the bean.
      */
     current: new beanType(...args) as T,
   };
 }
 
 /**
- * Removes all {@link Bean}s and then shuts down.
+ * Removes all beans and then shuts down.
  * @param timeout timeout in milliseconds to call `process.exit`.
  * @see process.exit
  */
@@ -256,7 +303,7 @@ export function shutdown(timeout = 20000) {
     })
     .enable(); // to track all pending promises
 
-  beans().forEach((beanName) => {
+  Container.names.forEach((beanName) => {
     try {
       destroy(Object, beanName);
     } catch (err) {
@@ -266,14 +313,14 @@ export function shutdown(timeout = 20000) {
 
   const exit = setTimeout(process.exit, timeout);
   setInterval(() => {
-    if (beans().length || asyncIds.size) return;
+    if (Container.names.length || asyncIds.size) return;
     clearTimeout(exit);
     process.exit();
   });
 }
 
 /**
- * Registers a specific instance as a {@link Bean} of a given class.
+ * Registers a specific instance as a bean of a given class.
  * @param instance the instance.
  * @param cls the class.
  * @param name name of the bean.
@@ -284,7 +331,7 @@ export function register<T>(
   name?: string
 ) {
   const beanName = name ?? cls.name;
-  new Container().add(beanName, instance, cls);
+  Container.add(beanName, instance, cls);
 }
 
 /**
@@ -297,7 +344,7 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
     class extends cls {
       constructor(...args: any[]) {
         super(...args);
-        new Container().add(name ?? cls.name, this, cls);
+        Container.add(name ?? cls.name, this, cls);
         const onInit = () => {
           (this as unknown as OnInit).onInit?.();
           Symbolization.process(cls, PostConstructSymbol, this, {
@@ -311,7 +358,19 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
       }
     }
   );
+  Object.defineProperty(singleton, BeanSymbol, {
+    writable: false,
+    value: true,
+  });
   return withName(singleton, name ?? cls.name);
+}
+
+/**
+ * Checks if a class is a bean type or not.
+ * @param cls the class.
+ */
+export function isBean<T>(cls: Class<T>) {
+  return cls[BeanSymbol] === true;
 }
 
 /**
@@ -321,6 +380,7 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
 export function autoBean<T>(cls: Class<any>): Class<T> {
   const beanClass = asBean<T>(cls);
   Object.defineProperty(beanClass, AutoSymbol, {
+    writable: false,
     value: true,
   });
   return beanClass;

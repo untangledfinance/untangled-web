@@ -1,8 +1,8 @@
 import { CacheStore } from '../../core/caching';
 import { Controller, Delete, Get, Post, Req, Request } from '../../core/http';
-import { beanOf, destroy, restart, shutdown } from '../../core/ioc';
+import { beanOf, beans, destroy, restart, shutdown } from '../../core/ioc';
 import { Publisher } from '../../core/pubsub';
-import { Runner } from '../../core/scheduling';
+import { Runner, Runners } from '../../core/scheduling';
 import { When } from '../../core/validation';
 import { Auth, AuthReq } from '../../middlewares/auth';
 import { RateLimit } from '../../middlewares/rate-limit';
@@ -34,6 +34,27 @@ export class AdminController {
 
   private get publisher() {
     return beanOf(Publisher);
+  }
+
+  @Get('/_job')
+  @Auth('job:list')
+  async listJobs() {
+    return Object.entries(beans((_, bean) => bean instanceof Runner)).reduce(
+      (jobMap, [jobName, bean]) => {
+        const tasks = Runners.getTasks(bean as Runner);
+        return {
+          ...jobMap,
+          [jobName]: Object.entries(tasks).reduce(
+            (taskMap, [taskName, cron]) => ({
+              ...taskMap,
+              [taskName]: cron.cronTime,
+            }),
+            {} as Record<string, string>
+          ),
+        };
+      },
+      {} as Record<string, Record<string, string>>
+    );
   }
 
   @Post('/_job/:name/restart')
@@ -86,7 +107,7 @@ export class AdminController {
     return this.cacheStore.get(cacheKey);
   }
 
-  @Get('/_cache/:key')
+  @Delete('/_cache/:key')
   @Auth('cache:delete')
   async deleteCache(req: AuthReq) {
     const cacheKey = req.params.key as string;

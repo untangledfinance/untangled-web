@@ -1,7 +1,7 @@
 import { Boot } from 'untangled-web/boot';
 import * as bootLoaders from 'untangled-web/boot/loaders';
+import { HealthController } from 'untangled-web/boot/_dev';
 import { Application, Module } from 'untangled-web/core/http';
-import type { Runner } from 'untangled-web/core/scheduling';
 import { AppController } from './app.controller';
 import { AppJob } from './app.job';
 
@@ -17,19 +17,16 @@ import { AppJob } from './app.job';
       redis: true,
     },
     jwt: true,
+    scheduler: {
+      enabled: true,
+      jobs: [AppJob],
+    },
   })
 )
 @Module({
-  controllers: [AppController],
+  controllers: [HealthController, AppController],
 })
 export class App extends Application {
-  async onInit() {
-    if (Configs.job.enabled) {
-      const jobs: Class<Runner>[] = [AppJob];
-      jobs.forEach((job) => $(job)); // enable jobs
-    }
-  }
-
   async onStop() {
     await this.stop();
   }
