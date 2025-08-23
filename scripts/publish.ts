@@ -31,7 +31,7 @@ type Package = {
 
 async function usePackage(dryrun?: boolean) {
   const pkg: Package = JSON.parse(await readFile('package.json', 'utf8'));
-  const oldPkg = { ...pkg };
+  const oldPkg = structuredClone(pkg);
 
   const apply = async (
     options: Partial<{ name: string; version: string; registry: string }>
