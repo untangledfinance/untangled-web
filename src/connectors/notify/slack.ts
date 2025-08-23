@@ -31,6 +31,10 @@ export class SlackConnector extends NotifyConnector<KnownBlock[], string> {
         channel,
         thread_ts: threadId,
       });
+      this.logger.info(`Message sent`, {
+        channel,
+        thread: ts,
+      });
       return {
         ok,
         message,

@@ -11,7 +11,8 @@ function configStore() {
 
 function env(...names: string[]) {
   for (const name of names) {
-    const value = env(name);
+    if (!name?.trim()?.length) continue;
+    const value = process.env[name];
     if (value !== undefined) return value;
   }
 }

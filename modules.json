@@ -32,6 +32,7 @@
   "boot/_dev",
   "boot/loaders",
   "boot/decorators",
+  "boot/utils",
   "middlewares/auth",
   "middlewares/rate-limit"
 ]

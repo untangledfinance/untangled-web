@@ -2,6 +2,7 @@ import { KnownBlock } from '@slack/web-api';
 import { beanOf } from '../../core/ioc';
 import { NotifyConnector } from '../../core/notify';
 import { SlackConnector } from '../../connectors/notify';
+import { useAppInfo } from './app';
 
 /**
  * Returns the format of a {@link Date} as like `Nov 13 2023 19:23 UTC`.
@@ -98,34 +99,13 @@ export function messageBlocks(options: MessageOptions) {
 }
 
 /**
- * Returns basic information of the application.
- */
-export function useApp() {
-  const appName = Configs.app.name;
-  const appLink = Configs.app.url;
-  const appRegistry = Configs.app.registry;
-  const appVersion = Configs.app.version;
-  const systemName = Configs.system.name;
-  const systemIcon = Configs.app.icon;
-  return {
-    appName,
-    appLink,
-    appRegistry,
-    appVersion,
-    systemName,
-    systemIcon,
-  };
-}
-
-/**
  * Uses Slack for notifications.
  * @see SlackConnector
  */
 export function useSlack() {
   const client = beanOf<SlackConnector>(NotifyConnector.name);
-  const { systemName, systemIcon, ...app } = useApp();
-  const appLink = `*<${app.appLink}|${app.appName}>*`;
-  const appVersion = `*<${app.appRegistry}|${app.appVersion}>*`;
+  const { systemIcon, systemName, appLink, appVersionLink } =
+    useAppInfo.forSlack();
   return {
     /**
      * The default {@link SlackConnector} instance.
@@ -146,7 +126,7 @@ export function useSlack() {
         messageBlocks({
           title: `*${user}* started ${appLink}.`,
           icon: user === systemName && systemIcon,
-          header: user === systemName && appVersion,
+          header: user === systemName && appVersionLink,
           description: user === systemName && ['*Status*\n~Stopped~ → Running'],
         }),
       /**
@@ -156,7 +136,7 @@ export function useSlack() {
         messageBlocks({
           title: `*${user}* stopped ${appLink}.`,
           icon: user === systemName && systemIcon,
-          header: user === systemName && appVersion,
+          header: user === systemName && appVersionLink,
           description: user === systemName && ['*Status*\n~Running~ → Stopped'],
         }),
       /**

@@ -6,6 +6,7 @@ import { Runner } from '../../core/scheduling';
 import { When } from '../../core/validation';
 import { Auth, AuthReq } from '../../middlewares/auth';
 import { RateLimit } from '../../middlewares/rate-limit';
+import { useAppInfo } from '../utils/app';
 import { clientIP, isDev } from '../utils/http';
 import { useSlack } from '../utils/slack';
 
@@ -130,11 +131,12 @@ export class DevController {
   @Get('/_metadata')
   @When(isDev)
   async metadata() {
+    const appInfo = useAppInfo();
     return {
-      env: process.env.ENV as string,
-      name: Configs.app.name,
-      version: Configs.app.version,
-      description: Configs.app.description,
+      env: appInfo.env,
+      name: appInfo.appName,
+      version: appInfo.appVersion,
+      description: appInfo.appDescription,
       now: new Date().toISOString(),
     };
   }
