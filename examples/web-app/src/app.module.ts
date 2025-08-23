@@ -24,8 +24,10 @@ import { AppJob } from './app.job';
 })
 export class App extends Application {
   async onInit() {
-    const jobs: Class<Runner>[] = [AppJob];
-    jobs.forEach((job) => $(job)); // enable jobs
+    if (Configs.job.enabled) {
+      const jobs: Class<Runner>[] = [AppJob];
+      jobs.forEach((job) => $(job)); // enable jobs
+    }
   }
 
   async onStop() {
