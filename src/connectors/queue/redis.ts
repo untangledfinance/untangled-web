@@ -56,6 +56,9 @@ export class RedisQueue
   async connect() {
     try {
       await this.client.connect();
+      this.client.on('error', (err) => {
+        this.logger.error(`${err.message}\n`, err);
+      });
       this.logger.info('Connected');
     } catch (err) {
       this.logger.error(`Connection failed: ${err.message}`);

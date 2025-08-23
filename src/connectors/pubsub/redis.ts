@@ -38,6 +38,9 @@ export class RedisPublisher extends Publisher implements OnInit, OnStop {
   async connect() {
     try {
       await this.client.connect();
+      this.client.on('error', (err) => {
+        this.logger.error(`${err.message}\n`, err);
+      });
       this.logger.info('Connected');
     } catch (err) {
       this.logger.error(`Connection failed: ${err.message}`);
@@ -91,6 +94,9 @@ export class RedisSubscriber extends Subscriber implements OnInit, OnStop {
   async connect() {
     try {
       await this.client.connect();
+      this.client.on('error', (err) => {
+        this.logger.error(`${err.message}\n`, err);
+      });
       this.logger.info('Connected');
     } catch (err) {
       this.logger.error(`Connection failed: ${err.message}`);
