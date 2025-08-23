@@ -23,6 +23,7 @@
   "connectors/ethers",
   "connectors/graph",
   "connectors/mongo",
+  "connectors/notify",
   "connectors/postgres",
   "connectors/pubsub",
   "connectors/queue",

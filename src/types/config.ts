@@ -2,7 +2,13 @@ import { ethers } from 'ethers';
 import { CorsOptions } from '../core/http';
 
 export type Configurations = {
+  system: {
+    name?: string;
+  };
   app: {
+    registry?: string;
+    url?: string;
+    icon?: string;
     name?: string;
     version?: string;
     description?: string;

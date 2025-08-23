@@ -1,3 +1,4 @@
+import os from 'os';
 import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
 import { Context } from '../../core/context';
@@ -8,100 +9,111 @@ function configStore() {
   return Context.for<ConfigStore>('Configs').getOrThrow();
 }
 
+function env(...names: string[]) {
+  for (const name of names) {
+    const value = env(name);
+    if (value !== undefined) return value;
+  }
+}
+
 function defaultConfigs(): Partial<Configurations> {
   return {
+    system: {
+      name: env('SYSTEM_NAME') || os.hostname(),
+    },
     app: {
-      name: (process.env['NAME'] as string) || 'Application',
-      version: (process.env['VERSION'] as string) || '',
-      description: (process.env['DESCRIPTION'] as string) || '',
-      host: (process.env['HOST'] as string) || '0.0.0.0',
-      port: parseInt(process.env['PORT'] as string) || 3000,
+      registry: env('APP_REGISTRY') || '',
+      url: env('URL', 'APP_URL', 'APP_LINK') || '',
+      icon: env('ICON', 'APP_ICON') || '',
+      name: env('NAME', 'APP_NAME') || 'Application',
+      version: env('VERSION', 'APP_VERSION') || '',
+      description: env('DESCRIPTION', 'APP_DESCRIPTION') || '',
+      host: env('HOST', 'APP_HOST') || '0.0.0.0',
+      port: parseInt(env('PORT', 'APP_PORT')) || 3000,
     },
     cors: {
-      allowedHeaders: process.env['CORS_ALLOWED_HEADERS']?.split?.(','),
-      allowedMethods: process.env['CORS_ALLOWED_METHODS']?.split?.(
-        ','
-      ) as HttpMethod[],
-      allowedOrigins: process.env['CORS_ALLOWED_ORIGINS']?.split?.(','),
-      maxAge: process.env['CORS_MAX_AGE'],
+      allowedHeaders: env('CORS_ALLOWED_HEADERS')?.split?.(','),
+      allowedMethods: env('CORS_ALLOWED_METHODS')?.split?.(',') as HttpMethod[],
+      allowedOrigins: env('CORS_ALLOWED_ORIGINS')?.split?.(','),
+      maxAge: env('CORS_MAX_AGE'),
     },
-    proxy: Object.keys(process.env).reduce((m, k) => {
+    proxy: Object.entries(process.env).reduce((m, [k, v]) => {
       if (k.startsWith('PROXY_')) {
-        m[k.replace(/^PROXY_/g, '').toUpperCase()] = process.env[k];
+        m[k.replace(/^PROXY_/g, '').toUpperCase()] = v;
       }
       return m;
     }, {}),
     job: {
-      enabled: (process.env['JOB_EXECUTOR_ENABLED'] as string) === 'true',
+      enabled: env('JOB_ENABLED', 'JOB_EXECUTOR_ENABLED') === 'true',
     },
     jwt: {
-      privateKey: process.env['JWT_PRIVATE_KEY'],
-      expiry: parseInt(process.env['JWT_EXPIRY'] as string),
+      privateKey: env('JWT_PRIVATE_KEY'),
+      expiry: parseInt(env('JWT_EXPIRY')),
     },
     acl: {
-      path: process.env['ACL_PATH'],
-      enabled: (process.env['ACL_ENABLED'] as string) === 'true',
+      path: env('ACL_PATH'),
+      enabled: env('ACL_ENABLED') === 'true',
     },
     db: {
       mongo: {
-        name: process.env['DATABASE_NAME'],
-        host: process.env['DATABASE_HOST'],
-        port: parseInt(process.env['DATABASE_PORT'] as string),
-        username: process.env['DATABASE_USERNAME'],
-        password: process.env['DATABASE_PASSWORD'],
-        tls: process.env['DATABASE_TLS'] === 'true',
+        name: env('DATABASE_NAME'),
+        host: env('DATABASE_HOST'),
+        port: parseInt(env('DATABASE_PORT')),
+        username: env('DATABASE_USERNAME'),
+        password: env('DATABASE_PASSWORD'),
+        tls: env('DATABASE_TLS') === 'true',
       },
       postgres: {
-        name: process.env['PGDATABASE'],
-        host: process.env['PGHOST'],
-        port: parseInt(process.env['PGPORT'] as string),
-        username: process.env['PGUSERNAME'],
-        password: process.env['PGPASSWORD'],
-        tls: process.env['PGSSL'] === 'true',
-        migrationRoot: process.env['PGMIGRATIONS'],
+        name: env('PGDATABASE'),
+        host: env('PGHOST'),
+        port: parseInt(env('PGPORT')),
+        username: env('PGUSERNAME'),
+        password: env('PGPASSWORD'),
+        tls: env('PGSSL') === 'true',
+        migrationRoot: env('PGMIGRATIONS'),
       },
       redis: {
-        host: process.env['REDIS_HOST'],
-        port: parseInt(process.env['REDIS_PORT'] ?? '6379'),
-        username: process.env['REDIS_USERNAME'],
-        password: process.env['REDIS_PASSWORD'],
-        database: parseInt(process.env['REDIS_DATABASE'] as string),
+        host: env('REDIS_HOST'),
+        port: parseInt(env('REDIS_PORT')) || 6379,
+        username: env('REDIS_USERNAME'),
+        password: env('REDIS_PASSWORD'),
+        database: parseInt(env('REDIS_DATABASE')),
       },
     },
     cache: {
-      enabled: (process.env['CACHE_ENABLED'] as string) === 'true',
-      type: process.env['CACHE_TYPE'],
+      enabled: env('CACHE_ENABLED') === 'true',
+      type: env('CACHE_TYPE'),
     },
     queue: {
-      type: process.env['QUEUE_TYPE'],
+      type: env('QUEUE_TYPE'),
       redis: {
-        host: process.env['REDIS_QUEUE_HOST'],
-        port: parseInt(process.env['REDIS_QUEUE_PORT'] ?? '6379'),
-        username: process.env['REDIS_QUEUE_USERNAME'],
-        password: process.env['REDIS_QUEUE_PASSWORD'],
-        database: parseInt(process.env['REDIS_QUEUE_DATABASE'] as string),
+        host: env('REDIS_QUEUE_HOST'),
+        port: parseInt(env('REDIS_QUEUE_PORT')) || 6379,
+        username: env('REDIS_QUEUE_USERNAME'),
+        password: env('REDIS_QUEUE_PASSWORD'),
+        database: parseInt(env('REDIS_QUEUE_DATABASE')),
       },
     },
     pubsub: {
-      type: process.env['PUBSUB_TYPE'],
+      type: env('PUBSUB_TYPE'),
       redis: {
-        host: process.env['REDIS_PUBSUB_HOST'],
-        port: parseInt(process.env['REDIS_PUBSUB_PORT'] ?? '6379'),
-        username: process.env['REDIS_PUBSUB_USERNAME'],
-        password: process.env['REDIS_PUBSUB_PASSWORD'],
-        database: parseInt(process.env['REDIS_PUBSUB_DATABASE'] as string),
+        host: env('REDIS_PUBSUB_HOST'),
+        port: parseInt(env('REDIS_PUBSUB_PORT')) || 6379,
+        username: env('REDIS_PUBSUB_USERNAME'),
+        password: env('REDIS_PUBSUB_PASSWORD'),
+        database: parseInt(env('REDIS_PUBSUB_DATABASE')),
       },
     },
     storage: {
-      provider: process.env['STORAGE_PROVIDER'],
-      bucketName: process.env['STORAGE_BUCKET_NAME'],
+      provider: env('STORAGE_PROVIDER'),
+      bucketName: env('STORAGE_BUCKET_NAME'),
     },
     slack: {
-      token: process.env['SLACK_OAUTH_TOKEN'],
-      channelId: process.env['SLACK_DEFAULT_CHANNEL_ID'],
+      token: env('SLACK_OAUTH_TOKEN'),
+      channelId: env('SLACK_CHANNEL_ID', 'SLACK_DEFAULT_CHANNEL_ID'),
     },
     gcp: {
-      projectId: process.env['GCP_PROJECT_ID'],
+      projectId: env('GCP_PROJECT_ID'),
     },
   };
 }
@@ -125,9 +137,8 @@ export default (({
     configStore()
       .load({
         ...defaultConfigs(),
-        env: /* reconstruct json values */ Object.keys(process.env).reduce(
-          (env, key) => {
-            const val = process.env[key];
+        env: /* reconstruct json values */ Object.entries(process.env).reduce(
+          (env, [key, val]) => {
             try {
               env[key] = JSON.parse(val);
             } catch {

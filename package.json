@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",
+    "@slack/web-api": "^7.10.0",
     "axios": "^1.8.4",
     "bcryptjs": "^2.4.3",
     "cron": "^3.5.0",

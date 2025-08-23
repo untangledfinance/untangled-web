@@ -28,8 +28,3 @@ export class NotifyConnector<Data = any, Dest = any> extends Callable<
     throw notImplementedYet();
   }
 }
-
-/**
- * Sends notifications.
- */
-export const Notify = NotifyConnector;
