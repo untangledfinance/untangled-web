@@ -15,6 +15,8 @@ import { Queue } from '../../core/queue';
 import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
 import { Publisher, Subscriber } from '../../core/pubsub';
 import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
+import { NotifyConnector } from '../../core/notify';
+import { SlackConnector } from '../../connectors/notify';
 
 function getConfigs() {
   return Context.for<Configurations>('Configs').getOrThrow();
@@ -166,6 +168,15 @@ async function initializeSubscriber(configs: Configurations) {
   return subscriber;
 }
 
+async function initializeSlackClient(configs: Configurations) {
+  const oauthToken = configs.slack.token;
+  const channelId = configs.slack.channelId;
+  return new (asBean<NotifyConnector>(SlackConnector, NotifyConnector.name))(
+    oauthToken,
+    channelId
+  );
+}
+
 export type InitOptions = Partial<{
   /**
    * Initializes databases.
@@ -226,6 +237,10 @@ export type InitOptions = Partial<{
     redis: boolean;
   }>;
   /**
+   * Uses Slack client.
+   */
+  slack: boolean;
+  /**
    * Initializes additional beans.
    * @param configs used configurations for the initializations.
    */
@@ -252,5 +267,6 @@ export default ((init) => async () => {
       initializePublisher(configs),
       initializeSubscriber(configs),
     ]));
+  init.slack && (await initializeSlackClient(configs));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;
