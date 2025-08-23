@@ -29,6 +29,7 @@
   "connectors/queue",
   "connectors/storage",
   "boot",
+  "boot/_dev",
   "boot/loaders",
   "boot/decorators",
   "middlewares/auth",

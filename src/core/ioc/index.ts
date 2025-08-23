@@ -159,6 +159,21 @@ export function beanOf<T>(cls: Class<T> | string, unsafe?: boolean) {
 }
 
 /**
+ * Attaches a {@link Bean} class before trying to retrieve its instance.
+ * @param cls the class.
+ * @returns the {@link beanOf} function that accepts the {@link Bean} name.
+ */
+beanOf.type = <T>(cls: Class<T> | AbstractClass<T>) => {
+  return (name: string, unsafe?: boolean) => {
+    const found = beanOf<T>(name, unsafe);
+    if (found && !(found instanceof cls)) {
+      throw new Error(`${name} is not ${cls.name}`);
+    }
+    return found;
+  };
+};
+
+/**
  * Removes a specific {@link Bean} if it exists.
  * @param cls class of the {@link Bean}.
  * @param name a specific name of the {@link Bean}.
