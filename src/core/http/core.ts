@@ -1,8 +1,9 @@
-import { HttpError } from './error';
 import { profiles, withName } from '../types';
-import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
 import { createLogger } from '../logging';
+import { HttpError } from './error';
+import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
 import { HttpContext } from './context';
+import { HttpClient } from './client';
 
 const logger = createLogger('http');
 
@@ -512,11 +513,17 @@ class RoutingConfigurer {
                     from: `${r.req.path}${r.req.queryString || ''}`,
                     to: completeProxyUrl,
                   });
-                  const proxyRes = await fetch(completeProxyUrl, {
-                    method: r.req.method,
-                    headers: proxyHeaders,
-                    body: proxyData,
+                  const client = HttpClient.create({
+                    silent: true,
                   });
+                  const proxyRes = HttpClient.toResponse(
+                    await client.request({
+                      url: completeProxyUrl,
+                      method: r.req.method,
+                      headers: proxyHeaders,
+                      data: proxyData,
+                    })
+                  );
                   logger.info(`Proxy completed`, {
                     to: completeProxyUrl,
                     status: proxyRes.status,
