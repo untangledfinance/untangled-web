@@ -2,7 +2,7 @@ import fs from 'fs';
 import { Mongo } from '../../connectors/mongo';
 import { EntityType, Postgres } from '../../connectors/postgres';
 import { GoogleCloudStorageConnector } from '../../connectors/storage';
-import { asBean } from '../../core/ioc';
+import { asBean, isBean } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
 import { StorageConnector } from '../../core/storage';
 import { RbacValidator } from '../../core/rbac';
@@ -13,6 +13,7 @@ import { Configurations } from '../../types';
 import { Queue } from '../../core/queue';
 import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
 import { Publisher, Subscriber } from '../../core/pubsub';
+import { Runner } from '../../core/scheduling';
 import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
 import { NotifyConnector } from '../../core/notify';
 import { SlackConnector } from '../../connectors/notify';
@@ -177,6 +178,29 @@ async function initializeSlackClient(configs: Configurations) {
   );
 }
 
+/**
+ * Starts scheduling given {@link Runner} types.
+ * @param defaultEnabled `true` to force enabling the scheduler.
+ * @param jobs the {@link Runner} type list.
+ */
+async function scheduleJobs(
+  configs: Configurations,
+  defaultEnabled?: boolean,
+  ...jobs: Class<Runner>[]
+) {
+  const runners = [] as Runner[];
+  const enabled =
+    (defaultEnabled !== false && configs.job.enabled) ||
+    defaultEnabled === true;
+  if (enabled) {
+    for (const type of jobs) {
+      const beanType = isBean(type) ? type : asBean<Runner>(type);
+      runners.push(new beanType());
+    }
+  }
+  return runners;
+}
+
 export type InitOptions = Partial<{
   /**
    * Initializes databases.
@@ -241,6 +265,19 @@ export type InitOptions = Partial<{
    */
   slack: boolean;
   /**
+   * Scheduler.
+   */
+  scheduler: {
+    /**
+     * To start scheduling jobs or not (default: {@link Configurations.job.enabled}).
+     */
+    enabled?: boolean;
+    /**
+     * A list of {@link Runner}s for scheduling.
+     */
+    jobs: Class<Runner>[];
+  };
+  /**
    * Initializes additional beans.
    * @param configs used configurations for the initializations.
    */
@@ -268,5 +305,11 @@ export default ((init) => async () => {
       initializeSubscriber(configs),
     ]));
   init.slack && (await initializeSlackClient(configs));
+  init.scheduler &&
+    (await scheduleJobs(
+      configs,
+      init.scheduler.enabled,
+      ...init.scheduler.jobs
+    ));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;

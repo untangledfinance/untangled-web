@@ -2,7 +2,6 @@ import { Cron, Job, Runner } from 'untangled-web/core/scheduling';
 import { Queue } from 'untangled-web/core/queue';
 import { createLogger } from 'untangled-web/core/logging';
 
-@Auto
 @Job
 export class AppJob extends Runner {
   private readonly queueId = 'queue1';

@@ -210,7 +210,6 @@ export function useSlack() {
       }) =>
         messageBlocks({
           title: `*${options.job}* failed in ${appLink}.`,
-          header: 'Whoops!!',
           description: `\`\`\`${options.error?.stack}\`\`\``,
         }),
     },
