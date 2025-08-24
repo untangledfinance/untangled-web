@@ -105,7 +105,7 @@ export class Runner extends Callable<Promise<void>> {
     const handlers = this.eventHandlers[eventName] ?? [];
     setImmediate(async () => {
       for (const handler of handlers) {
-        const h = handler(...data);
+        const h = handler?.(...data);
         h instanceof Promise && (await h);
       }
     });

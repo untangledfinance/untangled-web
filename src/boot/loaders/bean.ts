@@ -184,7 +184,14 @@ async function initializeSlackClient(configs: Configurations) {
  * @param jobs the {@link Runner} type list.
  */
 async function scheduleJobs(
-  configs: Configurations,
+  configs: Configurations & {
+    /**
+     * Handles errors when executing a given task.
+     * @param task name of the task.
+     * @param error the error.
+     */
+    onError?: (task: string, error?: Error) => void;
+  },
   defaultEnabled?: boolean,
   ...jobs: Class<Runner>[]
 ) {
@@ -195,7 +202,7 @@ async function scheduleJobs(
   if (enabled) {
     for (const type of jobs) {
       const beanType = isBean(type) ? type : asBean<Runner>(type);
-      runners.push(new beanType());
+      runners.push(new beanType().onFailed(configs.onError));
     }
   }
   return runners;
@@ -276,6 +283,12 @@ export type InitOptions = Partial<{
      * A list of {@link Runner}s for scheduling.
      */
     jobs: Class<Runner>[];
+    /**
+     * Handles errors when executing a given task.
+     * @param task name of the task.
+     * @param error the error.
+     */
+    onError?: (task: string, error?: Error) => void;
   };
   /**
    * Initializes additional beans.
@@ -307,7 +320,10 @@ export default ((init) => async () => {
   init.slack && (await initializeSlackClient(configs));
   init.scheduler &&
     (await scheduleJobs(
-      configs,
+      {
+        ...configs,
+        onError: init.scheduler.onError,
+      },
       init.scheduler.enabled,
       ...init.scheduler.jobs
     ));
