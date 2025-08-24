@@ -28,7 +28,7 @@ export function useAppInfo() {
 useAppInfo.forSlack = () => {
   const appInfo = useAppInfo();
   const appLink = `*<${appInfo.appLink}|${appInfo.appName}>*`;
-  const appVersionLink = `*<${appInfo.appRegistry}|${appInfo.appVersion}>*`;
+  const appVersionLink = `*<${appInfo.appRegistry}/${appInfo.appName}|${appInfo.appVersion}>*`;
   return {
     ...appInfo,
     appLink,
