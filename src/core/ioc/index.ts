@@ -154,7 +154,8 @@ const PreDestroySymbol = Symbol('PreDestroy');
 
 /**
  * Runs the associated method before its bean's initialization
- * (no `this` binding).
+ * (no `this` binding). The current implementation lets the method
+ * execute right after the `super(...)` call of the bean.
  */
 export const BeforeInit = Symbolization.createDecorator(PreConstructSymbol);
 

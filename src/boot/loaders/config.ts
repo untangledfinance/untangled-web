@@ -1,19 +1,35 @@
 import os from 'os';
 import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
-import { Configurations } from '../../types';
+import { Configurations, Env } from '../../types';
 import { BootLoader } from './types';
 import { useConfigs } from './hooks';
 
+/**
+ * {@link Env} from `process.env`.
+ */
+function processEnv(): Env {
+  return process.env;
+}
+
+/**
+ * Retrieves the first defined value from the current {@link Env}.
+ * @param names {@link Env} keys to check.
+ */
 function env(...names: string[]) {
+  const environ = processEnv();
   for (const name of names) {
     if (!name?.trim()?.length) continue;
-    const value = process.env[name];
+    const value = environ[name];
     if (value !== undefined) return value;
   }
 }
 
-function defaultConfigs(): Partial<Configurations> {
+/**
+ * Constructs the {@link Configurations} from current {@link Env}.
+ */
+function envConfigs(): Partial<Configurations> {
+  const environ = processEnv();
   return {
     system: {
       name: env('SYSTEM_NAME') || os.hostname(),
@@ -34,7 +50,7 @@ function defaultConfigs(): Partial<Configurations> {
       allowedOrigins: env('CORS_ALLOWED_ORIGINS')?.split?.(','),
       maxAge: env('CORS_MAX_AGE'),
     },
-    proxy: Object.entries(process.env).reduce((m, [k, v]) => {
+    proxy: Object.entries(environ).reduce((m, [k, v]) => {
       if (k.startsWith('PROXY_')) {
         m[k.replace(/^PROXY_/g, '').toUpperCase()] = v;
       }
@@ -112,6 +128,17 @@ function defaultConfigs(): Partial<Configurations> {
     gcp: {
       projectId: env('GCP_PROJECT_ID'),
     },
+    env: /* reconstruct json values */ Object.entries(environ).reduce(
+      (env, [key, val]) => {
+        try {
+          env[key] = JSON.parse(val);
+        } catch {
+          env[key] = val;
+        }
+        return env;
+      },
+      {}
+    ),
   };
 }
 
@@ -138,22 +165,9 @@ export default (({
   } = {}) =>
   async () => {
     externalConfigPaths.forEach(loadEnvFromJson);
-    const newConfigs =
+    const appConfigs =
       overrideConfigs instanceof Function ? overrideConfigs() : overrideConfigs;
-    useConfigs<ConfigStore>()
-      .load({
-        ...defaultConfigs(),
-        env: /* reconstruct json values */ Object.entries(process.env).reduce(
-          (env, [key, val]) => {
-            try {
-              env[key] = JSON.parse(val);
-            } catch {
-              env[key] = val;
-            }
-            return env;
-          },
-          {}
-        ),
-      } as Configurations)
-      .load(newConfigs instanceof Promise ? await newConfigs : newConfigs);
+    useConfigs<Env, ConfigStore>()
+      .load(envConfigs())
+      .load(appConfigs instanceof Promise ? await appConfigs : appConfigs);
   }) as BootLoader<ConfigOptions>;

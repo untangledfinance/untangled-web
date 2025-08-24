@@ -1,6 +1,16 @@
 import { ethers } from 'ethers';
 import { CorsOptions } from '../core/http';
 
+/**
+ * Structure for environment variables.
+ */
+export type Env = {
+  [key: string]: any;
+};
+
+/**
+ * Structure for configurations.
+ */
 export type Configurations = {
   system: {
     name?: string;
@@ -103,11 +113,9 @@ export type Configurations = {
     [key: string]: string;
   };
   /**
-   * Environment variables.
+   * Structural environment variables.
    */
-  env: {
-    [key: string]: any;
-  };
+  env: Env;
 };
 
 declare global {
