@@ -8,7 +8,6 @@ import { StorageConnector } from '../../core/storage';
 import { RbacValidator } from '../../core/rbac';
 import { CacheStore, LocalCacheStore } from '../../core/caching';
 import { RedisOptions, RedisStore } from '../../connectors/caching';
-import { Context } from '../../core/context';
 import { Configurations } from '../../types';
 import { Queue } from '../../core/queue';
 import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
@@ -18,10 +17,7 @@ import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
 import { NotifyConnector } from '../../core/notify';
 import { SlackConnector } from '../../connectors/notify';
 import { BootLoader } from './types';
-
-function getConfigs() {
-  return Context.for<Configurations>('Configs').getOrThrow();
-}
+import { useConfigs } from './hooks';
 
 /**
  * Initializes MongoDB connections.
@@ -61,7 +57,7 @@ async function initializePostgresDatabase(
 }
 
 /**
- * Initializes the default {@link StorageConnector}.
+ * Initializes the {@link StorageConnector} bean.
  */
 async function initializeStorageConnector(configs: Configurations) {
   const asStorageConnectorBean = (connectorClass: Class<StorageConnector>) =>
@@ -94,7 +90,7 @@ async function initializeRbac(configs: Configurations) {
 }
 
 /**
- * Initializes {@link CacheStore} bean.
+ * Initializes the {@link CacheStore} bean.
  */
 async function initializeCacheStore(configs: Configurations) {
   const cacheStore: CacheStore = (() => {
@@ -115,6 +111,10 @@ async function initializeCacheStore(configs: Configurations) {
   return cacheStore;
 }
 
+/**
+ * Initializes the {@link Queue} bean.
+ * @param reliable to use the reliable queue.
+ */
 async function initializeMessageQueue(
   configs: Configurations,
   reliable?: boolean
@@ -137,6 +137,9 @@ async function initializeMessageQueue(
   return queueConnector;
 }
 
+/**
+ * Initializes the {@link Publisher} bean.
+ */
 async function initializePublisher(configs: Configurations) {
   const publisher = (() => {
     switch (configs.pubsub.type?.toLocaleLowerCase()) {
@@ -153,6 +156,9 @@ async function initializePublisher(configs: Configurations) {
   return publisher;
 }
 
+/**
+ * Initializes the {@link Subscriber} bean.
+ */
 async function initializeSubscriber(configs: Configurations) {
   const subscriber = (() => {
     switch (configs.pubsub.type?.toLocaleLowerCase()) {
@@ -169,6 +175,9 @@ async function initializeSubscriber(configs: Configurations) {
   return subscriber;
 }
 
+/**
+ * Initializes the {@link NotifyConnector} bean using Slack.
+ */
 async function initializeSlackClient(configs: Configurations) {
   const oauthToken = configs.slack.token;
   const channelId = configs.slack.channelId;
@@ -186,11 +195,12 @@ async function initializeSlackClient(configs: Configurations) {
 async function scheduleJobs(
   configs: Configurations & {
     /**
-     * Handles errors when executing a given task.
+     * Handles errors when executing a given task of a job.
+     * @param job name of the job.
      * @param task name of the task.
      * @param error the error.
      */
-    onError?: (task: string, error?: Error) => void;
+    onError?: (job: string, task: string, error?: Error) => Promise<void>;
   },
   defaultEnabled?: boolean,
   ...jobs: Class<Runner>[]
@@ -202,12 +212,19 @@ async function scheduleJobs(
   if (enabled) {
     for (const type of jobs) {
       const beanType = isBean(type) ? type : asBean<Runner>(type);
-      runners.push(new beanType().onFailed(configs.onError));
+      runners.push(
+        new beanType().onFailed((task, error) =>
+          configs.onError?.(type.name, task, error)
+        )
+      );
     }
   }
   return runners;
 }
 
+/**
+ * Initialization options.
+ */
 export type InitOptions = Partial<{
   /**
    * Initializes databases.
@@ -284,11 +301,12 @@ export type InitOptions = Partial<{
      */
     jobs: Class<Runner>[];
     /**
-     * Handles errors when executing a given task.
+     * Handles errors when executing a given task of a job.
+     * @param job name of the job.
      * @param task name of the task.
      * @param error the error.
      */
-    onError?: (task: string, error?: Error) => void;
+    onError?: (job: string, task: string, error?: Error) => Promise<void>;
   };
   /**
    * Initializes additional beans.
@@ -298,7 +316,7 @@ export type InitOptions = Partial<{
 }>;
 
 export default ((init) => async () => {
-  const configs = getConfigs();
+  const configs = useConfigs();
   init.database?.mongo && (await initializeMongoDatabase(configs));
   if (init.database?.postgres) {
     const entities =

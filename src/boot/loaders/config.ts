@@ -1,13 +1,9 @@
 import os from 'os';
 import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
-import { Context } from '../../core/context';
 import { Configurations } from '../../types';
 import { BootLoader } from './types';
-
-function configStore() {
-  return Context.for<ConfigStore>('Configs').getOrThrow();
-}
+import { useConfigs } from './hooks';
 
 function env(...names: string[]) {
   for (const name of names) {
@@ -119,11 +115,20 @@ function defaultConfigs(): Partial<Configurations> {
   };
 }
 
+/**
+ * Configuration options.
+ */
 export type ConfigOptions = Partial<{
+  /**
+   * Overrides the default configurations (partially).
+   */
   overrideConfigs:
     | Partial<Configurations>
     | (() => Partial<Configurations>)
     | (() => Promise<Partial<Configurations>>);
+  /**
+   * External JSON files to load configurations from.
+   */
   externalConfigFiles: string[];
 }>;
 
@@ -135,7 +140,7 @@ export default (({
     externalConfigPaths.forEach(loadEnvFromJson);
     const newConfigs =
       overrideConfigs instanceof Function ? overrideConfigs() : overrideConfigs;
-    configStore()
+    useConfigs<ConfigStore>()
       .load({
         ...defaultConfigs(),
         env: /* reconstruct json values */ Object.entries(process.env).reduce(

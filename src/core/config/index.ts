@@ -49,7 +49,7 @@ export class ConfigStore {
             ? val
             : JSON.stringify(val);
       } catch (err) {
-        logger.error(`Env processing failed: ${env} (path: ${path})`);
+        logger.error(`Env processing failed: ${env} (path: '${path}')`);
       }
     }
   }
@@ -61,4 +61,9 @@ export class ConfigStore {
  */
 export const loadEnvFromJson = ConfigStore.loadEnvFromJson;
 
-export default new ConfigStore();
+/**
+ * The default {@link ConfigStore} which should be used globally.
+ */
+const Configs = new ConfigStore();
+
+export default Configs;
