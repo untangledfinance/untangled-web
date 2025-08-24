@@ -676,11 +676,56 @@ export interface Router {
    */
   route(method: HttpMethod, path: string, handler: Handler): this;
   /**
+   * Configures a `GET` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  get(path: string, handler: Handler): this;
+  /**
+   * Configures a `POST` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  post(path: string, handler: Handler): this;
+  /**
+   * Configures a `PUT` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  put(path: string, handler: Handler): this;
+  /**
+   * Configures a `PATCH` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  patch(path: string, handler: Handler): this;
+  /**
+   * Configures a `DELETE` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  delete(path: string, handler: Handler): this;
+  /**
    * Uses another {@link Router} as a routing group.
    * @param prefix the routing prefix.
-   * @param router the router.
+   * @param router the router type.
    */
   use(prefix: string, router: Class<Router>, ...args: any[]): this;
+  /**
+   * Uses another {@link Router} as a routing group.
+   * @param prefix the routing prefix.
+   * @param router a {@link Promise} or an async function to get the router type.
+   */
+  useAsync(
+    prefix: string,
+    router: Promise<Class<Router>> | (() => Promise<Class<Router>>),
+    ...args: any[]
+  ): Promise<this>;
   /**
    * Adds an event handler.
    * @param event name of the event.
@@ -702,7 +747,7 @@ export interface Server extends Router {
   /**
    * Starts serving.
    */
-  start(options: Partial<ServeOptions>): Promise<this>;
+  start(options?: Partial<ServeOptions>): Promise<this>;
   /**
    * Stops serving.
    */

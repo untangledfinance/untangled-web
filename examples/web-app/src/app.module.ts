@@ -21,13 +21,10 @@ import { AppJob } from './app.job';
       enabled: true,
       jobs: [AppJob],
     },
+    safeExit: true,
   })
 )
 @Module({
   controllers: [HealthController, AppController],
 })
-export class App extends Application {
-  async onStop() {
-    await this.stop();
-  }
-}
+export class App extends Application {}
