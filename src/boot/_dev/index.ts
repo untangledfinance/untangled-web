@@ -36,6 +36,12 @@ export class AdminController {
     return beanOf(Publisher);
   }
 
+  @Get('/_bean')
+  @Auth('bean:list')
+  async beans() {
+    return Object.keys(beans());
+  }
+
   @Get('/_job')
   @Auth('job:list')
   async listJobs() {
@@ -47,7 +53,7 @@ export class AdminController {
           [jobName]: Object.entries(tasks).reduce(
             (taskMap, [taskName, cron]) => ({
               ...taskMap,
-              [taskName]: cron.cronTime,
+              [taskName]: cron.cronTime.toJSON().join(' '),
             }),
             {} as Record<string, string>
           ),

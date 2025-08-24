@@ -1,6 +1,14 @@
 import asyncHooks from 'async_hooks';
 import { createLogger } from '../logging';
-import { classOf, isClass, Symbolization, withClass, withName } from '../types';
+import {
+  classOf,
+  hasSymbol,
+  isClass,
+  Symbolization,
+  withClass,
+  withName,
+  withSymbol,
+} from '../types';
 
 const logger = createLogger('ioc');
 
@@ -26,11 +34,7 @@ export function asSingleton<C extends Class<any>>(cls: C) {
     } as C,
     cls.name
   );
-  Object.defineProperty(singleton, SingletonSymbol, {
-    writable: false,
-    value: true,
-  });
-  return singleton;
+  return withSymbol(singleton, SingletonSymbol);
 }
 
 /**
@@ -38,7 +42,7 @@ export function asSingleton<C extends Class<any>>(cls: C) {
  * @param cls the class.
  */
 export function isSingleton<T>(cls: Class<T>) {
-  return cls[SingletonSymbol] === true;
+  return hasSymbol(cls, SingletonSymbol);
 }
 
 /**
@@ -63,7 +67,8 @@ class _Container {
    * @param filter the bean filter by name and instance.
    */
   find(filter?: (name: string, instance: any) => boolean) {
-    return Object.entries(this.beans)
+    return this.beans
+      .entries()
       .filter(([name, instance]) => (filter ? filter(name, instance) : true))
       .reduce(
         (m, [name, instance]) => ({ ...m, [name]: instance }),
@@ -199,7 +204,7 @@ export function beanOf<T>(cls: Class<T> | string, unsafe?: boolean) {
   } else {
     clz = cls as unknown as Class<T>;
   }
-  if ((clz as any)[AutoSymbol]) {
+  if (hasSymbol(clz, AutoSymbol)) {
     new clz();
   }
   const name = clz.name;
@@ -337,7 +342,7 @@ export function register<T>(
 /**
  * Converts a class to an IoC bean.
  * @param cls the class.
- * @returns a {@link Singleton} version of the given class.
+ * @returns a singleton version of the given class.
  */
 export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
   const singleton = asSingleton<typeof cls>(
@@ -358,11 +363,7 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
       }
     }
   );
-  Object.defineProperty(singleton, BeanSymbol, {
-    writable: false,
-    value: true,
-  });
-  return withName(singleton, name ?? cls.name);
+  return withName(withSymbol(singleton, BeanSymbol), name ?? cls.name);
 }
 
 /**
@@ -370,7 +371,7 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
  * @param cls the class.
  */
 export function isBean<T>(cls: Class<T>) {
-  return cls[BeanSymbol] === true;
+  return hasSymbol(cls, BeanSymbol);
 }
 
 /**
@@ -379,9 +380,5 @@ export function isBean<T>(cls: Class<T>) {
  */
 export function autoBean<T>(cls: Class<any>): Class<T> {
   const beanClass = asBean<T>(cls);
-  Object.defineProperty(beanClass, AutoSymbol, {
-    writable: false,
-    value: true,
-  });
-  return beanClass;
+  return withSymbol(beanClass, AutoSymbol);
 }

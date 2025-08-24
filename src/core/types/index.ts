@@ -244,6 +244,31 @@ export function isString(v: any) {
 }
 
 /**
+ * Annotates an object with a given symbol.
+ * @param obj the object.
+ * @param s the symbol.
+ * @returns the object.
+ */
+export function withSymbol(obj: any, s: symbol) {
+  if (obj || !(s in obj)) {
+    Object.defineProperty(obj, s, {
+      writable: false,
+      value: true,
+    });
+  }
+  return obj;
+}
+
+/**
+ * Checks if an object is annotated with a given symbol or not.
+ * @param obj the object.
+ * @param s the symbol.
+ */
+export function hasSymbol(obj: any, s: symbol) {
+  return obj && s in obj && obj[s] === true;
+}
+
+/**
  * Adjusts name of a given object.
  * @param obj the object.
  * @param name the desired name.
