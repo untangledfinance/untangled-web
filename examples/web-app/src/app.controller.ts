@@ -1,10 +1,10 @@
 import { Controller, Get, Request, type Req } from 'untangled-web/core/http';
+import { Log, Logger } from 'untangled-web/core/logging';
 import { AppService } from './app.service';
 import { ReqCache } from './app.util';
-import { Log, Logger } from 'untangled-web/core/logging';
 
-@Controller()
 @Log
+@Controller()
 export class AppController {
   constructor(
     private readonly logger: Logger,

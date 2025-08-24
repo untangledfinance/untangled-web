@@ -1,3 +1,12 @@
+import express from 'express';
+import http from 'http';
+import { Readable } from 'stream';
+import { isClass, profiles } from '../../types';
+import { Step } from '../../validation';
+import { createLogger } from '../../logging';
+import { OnStop } from '../../ioc';
+import { HttpContext } from '../context';
+import { HttpError, NotFoundError } from '../error';
 import {
   configure,
   CorsOptions,
@@ -13,14 +22,6 @@ import {
   Server,
   StatusCode,
 } from '../core';
-import { HttpError, NotFoundError } from '../error';
-import { isClass, profiles } from '../../types';
-import { Step } from '../../validation';
-import express from 'express';
-import http from 'http';
-import { createLogger } from '../../logging';
-import { HttpContext } from '../context';
-import { Readable } from 'stream';
 
 const logger = createLogger('express');
 
@@ -175,7 +176,12 @@ export abstract class Group implements Router {
   @Step(2)
   _route(method: HttpMethod, path: string, handler: Handler) {
     !this.router && this.configure();
-    this.router[method.toLowerCase()](
+    const routingMethod = method.toLowerCase();
+    if (!(routingMethod in this.router)) {
+      throw new Error(`Invalid routing method: ${routingMethod}`);
+    }
+    const handle = handler.bind(this) as Handler;
+    this.router[routingMethod](
       path,
       async (
         req: express.Request,
@@ -183,7 +189,7 @@ export abstract class Group implements Router {
         next: express.NextFunction
       ) => {
         try {
-          this.send(res, await handler(Helper.toReq(req), Helper.toRes(res)));
+          this.send(res, await handle(Helper.toReq(req), Helper.toRes(res)));
         } catch (err) {
           if (!(err instanceof HttpError)) {
             logger.error(`${err.message}\n`, err);
@@ -200,37 +206,22 @@ export abstract class Group implements Router {
     return this._route(method, path, handler);
   }
 
-  /**
-   * @see {@link route}.
-   */
   get(path: string, handler: Handler) {
     return this._route('GET', path, handler);
   }
 
-  /**
-   * @see {@link route}.
-   */
   post(path: string, handler: Handler) {
     return this._route('POST', path, handler);
   }
 
-  /**
-   * @see {@link route}.
-   */
   put(path: string, handler: Handler) {
     return this._route('PUT', path, handler);
   }
 
-  /**
-   * @see {@link route}.
-   */
   patch(path: string, handler: Handler) {
     return this._route('PATCH', path, handler);
   }
 
-  /**
-   * @see {@link route}.
-   */
   delete(path: string, handler: Handler) {
     return this._route('DELETE', path, handler);
   }
@@ -265,6 +256,23 @@ export abstract class Group implements Router {
     return this._use(prefix, group, ...args);
   }
 
+  useAsync(
+    prefix: string,
+    group: Promise<Class<Group>> | (() => Class<Group> | Promise<Class<Group>>),
+    ...args: any[]
+  ) {
+    return this.on('started', async () => {
+      const g = await (async () => {
+        const g = await (group instanceof Promise ? group : group?.());
+        if (!isClass(g)) {
+          throw new Error('Invalid async routing!');
+        }
+        return g;
+      })();
+      return this._use(prefix, g, ...args);
+    });
+  }
+
   on(event: string, handler: Function) {
     const handlers = this.eventHandlers.get(event) ?? [];
     handlers.push(handler);
@@ -294,10 +302,10 @@ type ServerEvent =
 /**
  * An Express-embedded HTTP server.
  */
-export abstract class Application extends Group implements Server {
+export abstract class Application extends Group implements Server, OnStop {
   private server?: http.Server;
 
-  async start({ host, port }: Partial<ServeOptions>) {
+  async start({ host, port }: Partial<ServeOptions> = {}) {
     !this.router && configure(this);
     if (this.server?.listening) {
       throw new Error('Already served!');
@@ -363,6 +371,10 @@ export abstract class Application extends Group implements Server {
   async stop() {
     this.emit('stop');
     this.server?.close();
+  }
+
+  async onStop() {
+    await this.stop();
   }
 
   override on(event: ServerEvent, handler: Function) {

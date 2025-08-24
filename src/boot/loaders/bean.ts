@@ -368,7 +368,7 @@ export default ((init) => async () => {
   init.safeExit &&
     (await enableSafeExit(
       configs,
-      typeof init.safeExit === 'function' && init.safeExit
+      typeof init.safeExit === 'function' ? init.safeExit : undefined
     ));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;
