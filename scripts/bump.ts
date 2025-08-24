@@ -36,6 +36,11 @@ function minorBump(version: string) {
   return v.join('.');
 }
 
+async function push(version: string) {
+  await Bun.$`git tag ${version} && git push $(git remote) tag ${version}`;
+  return version;
+}
+
 const { values } = parseArgs({
   args: Bun.argv,
   allowPositionals: true,
@@ -46,7 +51,14 @@ const { values } = parseArgs({
     registry: {
       type: 'string',
     },
+    push: {
+      type: 'boolean',
+      default: false,
+    },
   },
 });
 
-await getLatestVersion(values).then(minorBump).then(console.log);
+await getLatestVersion(values)
+  .then(minorBump)
+  .then((version) => (values.push ? push(version) : Promise.resolve(version)))
+  .then(console.log);
