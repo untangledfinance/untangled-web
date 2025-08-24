@@ -2,7 +2,7 @@ import fs from 'fs';
 import { Mongo } from '../../connectors/mongo';
 import { EntityType, Postgres } from '../../connectors/postgres';
 import { GoogleCloudStorageConnector } from '../../connectors/storage';
-import { asBean, isBean } from '../../core/ioc';
+import { asBean, isBean, shutdown } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
 import { StorageConnector } from '../../core/storage';
 import { RbacValidator } from '../../core/rbac';
@@ -223,6 +223,21 @@ async function scheduleJobs(
 }
 
 /**
+ * Enables removing all beans before the main process exits.
+ * @param onExit the function executes before the shutdown.
+ */
+async function enableSafeExit(
+  configs: Configurations,
+  onExit?: (configs: Configurations) => Promise<void>
+) {
+  try {
+    await onExit?.(configs);
+  } finally {
+    process.on('SIGINT', shutdown).on('SIGTERM', shutdown);
+  }
+}
+
+/**
  * Initialization options.
  */
 export type InitOptions = Partial<{
@@ -309,6 +324,11 @@ export type InitOptions = Partial<{
     onError?: (job: string, task: string, error?: Error) => Promise<void>;
   };
   /**
+   * Removes all beans before the main process exits. If a function is passed,
+   * it will execute before all bean removals.
+   */
+  safeExit?: boolean | ((configs: Configurations) => Promise<void>);
+  /**
    * Initializes additional beans.
    * @param configs used configurations for the initializations.
    */
@@ -344,6 +364,11 @@ export default ((init) => async () => {
       },
       init.scheduler.enabled,
       ...init.scheduler.jobs
+    ));
+  init.safeExit &&
+    (await enableSafeExit(
+      configs,
+      typeof init.safeExit === 'function' && init.safeExit
     ));
   init.new && (await init.new(configs));
 }) as BootLoader<InitOptions>;
