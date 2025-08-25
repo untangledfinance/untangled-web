@@ -134,13 +134,12 @@ export class RedisSubscriber extends Subscriber implements OnInit, OnStop {
         rChannels.push(channel);
       }
     }
-    const h: MessageHandler<string> = (m, channel) => {
+    const h: MessageHandler<string> = async (m, channel) => {
       try {
         const { message } = JSON.parse(m) as { message: T };
         return handler(message, channel);
       } catch (err) {
         this.logger.error(`Failed when processing message: ${err.message}`);
-        throw err;
       }
     };
     await Promise.all(
