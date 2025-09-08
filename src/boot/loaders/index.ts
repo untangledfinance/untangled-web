@@ -1,6 +1,7 @@
 import config from './config';
 import bean from './bean';
 
+export { BootLoader } from './types';
 export * from './hooks';
 
 export {

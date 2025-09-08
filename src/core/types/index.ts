@@ -247,13 +247,14 @@ export function isString(v: any) {
  * Annotates an object with a given symbol.
  * @param obj the object.
  * @param s the symbol.
+ * @param value value to assign (default: `true`).
  * @returns the object.
  */
-export function withSymbol(obj: any, s: symbol) {
-  if (obj || !(s in obj)) {
+export function withSymbol(obj: any, s: symbol, value: any = true) {
+  if (obj && !(s in obj)) {
     Object.defineProperty(obj, s, {
       writable: false,
-      value: true,
+      value,
     });
   }
   return obj;
@@ -266,6 +267,17 @@ export function withSymbol(obj: any, s: symbol) {
  */
 export function hasSymbol(obj: any, s: symbol) {
   return obj && s in obj && obj[s] === true;
+}
+
+/**
+ * Retrieves a specific property from an object's symbol.
+ * @param obj the object.
+ * @param s the symbol.
+ */
+export function getSymbol<T = any>(obj: any, s: symbol): T | undefined {
+  if (obj && s in obj) {
+    return obj[s] as T;
+  }
 }
 
 /**
@@ -288,24 +300,15 @@ export function withName<T = any>(obj: T, name: string) {
  * @param cls type of the object.
  */
 export function withClass<T = any>(obj: T, cls: Class<T>) {
-  if (obj && !obj[ClassSymbol]) {
-    Object.defineProperty(obj, ClassSymbol, {
-      value: cls,
-      writable: false,
-    });
-  }
-  return obj;
+  return withSymbol(obj, ClassSymbol, cls);
 }
 
 /**
  * Retrieves type of a given singleton or a bean instance.
- * @param instance the instance.
+ * @param obj the instance or the bean class.
  */
-export function classOf<T>(instance: T): Class<T> {
-  if (typeof instance === 'object') {
-    return instance[ClassSymbol];
-  }
-  return Object as unknown as Class<T>;
+export function classOf<T>(obj: T | Class<T>): Class<T> {
+  return getSymbol(obj, ClassSymbol);
 }
 
 /**

@@ -11,7 +11,7 @@ export type Env = {
 /**
  * Structure for configurations.
  */
-export type Configurations = {
+export type Configurations<E extends Env = Env> = {
   system: {
     name?: string;
   };
@@ -115,7 +115,7 @@ export type Configurations = {
   /**
    * Structural environment variables.
    */
-  env: Env;
+  env: E;
 };
 
 declare global {

@@ -2,7 +2,7 @@ import os from 'os';
 import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
 import { Configurations, Env } from '../../types';
-import { BootLoader } from './types';
+import { UseBootLoader } from './types';
 import { useConfigs } from './hooks';
 
 /**
@@ -151,8 +151,8 @@ export type ConfigOptions = Partial<{
    */
   overrideConfigs:
     | Partial<Configurations>
-    | (() => Partial<Configurations>)
-    | (() => Promise<Partial<Configurations>>);
+    | ((configs: Configurations) => Partial<Configurations>)
+    | ((configs: Configurations) => Promise<Partial<Configurations>>);
   /**
    * External JSON files to load configurations from.
    */
@@ -165,9 +165,13 @@ export default (({
   } = {}) =>
   async () => {
     externalConfigPaths.forEach(loadEnvFromJson);
+    const configs = useConfigs<Env, Configurations>();
+    const configStore = useConfigs<Env, ConfigStore>();
     const appConfigs =
-      overrideConfigs instanceof Function ? overrideConfigs() : overrideConfigs;
-    useConfigs<Env, ConfigStore>()
+      overrideConfigs instanceof Function
+        ? overrideConfigs(configs)
+        : overrideConfigs;
+    configStore
       .load(envConfigs())
       .load(appConfigs instanceof Promise ? await appConfigs : appConfigs);
-  }) as BootLoader<ConfigOptions>;
+  }) as UseBootLoader<ConfigOptions>;

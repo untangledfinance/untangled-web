@@ -16,7 +16,7 @@ import { Runner } from '../../core/scheduling';
 import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
 import { NotifyConnector } from '../../core/notify';
 import { SlackConnector } from '../../connectors/notify';
-import { BootLoader } from './types';
+import { UseBootLoader } from './types';
 import { useConfigs } from './hooks';
 
 /**
@@ -371,4 +371,4 @@ export default ((init) => async () => {
       typeof init.safeExit === 'function' ? init.safeExit : undefined
     ));
   init.new && (await init.new(configs));
-}) as BootLoader<InitOptions>;
+}) as UseBootLoader<InitOptions>;
