@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import {
   Chain,
   createPublicClient,
@@ -20,7 +21,7 @@ type ClientOptions = {
 
 /**
  * Creates a wallet client to read/write on-chain data.
- * @param chainId the chain Id.
+ * @param chainId the chain ID.
  * @param privateKey the private key of the wallet.
  */
 export function useWallet(
@@ -28,26 +29,61 @@ export function useWallet(
   privateKey: `0x${string}`,
   options?: ClientOptions
 ) {
-  return createWalletClient<HttpTransport<undefined, false>, Chain>({
+  const chain = extractChain({
+    chains,
+    id: chainId,
+  });
+  const client = createWalletClient<HttpTransport<undefined, false>, Chain>({
     transport: http(options?.url),
     account: privateKeyToAccount(privateKey),
-    chain: extractChain({
-      chains,
-      id: chainId,
-    }),
+    chain,
   });
+  Object.defineProperty(client, 'url', {
+    value: options?.url || chain.rpcUrls.default.http.at(0),
+    writable: false,
+  });
+  return client as typeof client & { url: string };
 }
 
 /**
  * Creates a public client to read on-chain data.
- * @param chainId the chain Id.
+ * @param chainId the chain ID.
  */
 export function useClient(chainId: number, options?: ClientOptions) {
-  return createPublicClient({
-    transport: http(options?.url),
-    chain: extractChain({
-      chains,
-      id: chainId,
-    }),
+  const chain = extractChain({
+    chains,
+    id: chainId,
   });
+  const client = createPublicClient({
+    transport: http(options?.url),
+    chain,
+  });
+  Object.defineProperty(client, 'url', {
+    value: options?.url || chain.rpcUrls.default.http.at(0),
+    writable: false,
+  });
+  return client as typeof client & { url: string };
+}
+
+/**
+ * Retrieves an {@link ethers.JsonRpcProvider} for a given network.
+ * @param chainId Chain ID. of the network.
+ * @see provider
+ */
+export function useProvider(chainId: number | `${number}`) {
+  const chain = extractChain({
+    chains,
+    id: Number(chainId),
+  });
+  const url = chain.rpcUrls.default.http.at(0);
+  const network = new ethers.Network(chain.name, chain.id);
+  const provider = new ethers.JsonRpcProvider(url, network, {
+    staticNetwork: network,
+  });
+  Object.defineProperty(provider, 'url', {
+    value: url,
+  });
+  return provider as ethers.JsonRpcProvider & {
+    url: string;
+  };
 }
