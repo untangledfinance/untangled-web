@@ -282,7 +282,14 @@ export abstract class Group implements Router {
 
   emit(event: string, ...data: any[]) {
     const handlers = this.eventHandlers.get(event) ?? [];
-    handlers.forEach((handler) => handler.bind(this)(...data));
+    handlers.forEach(async (handler) => {
+      try {
+        const res = handler.bind(this)(...data);
+        res instanceof Promise && (await res);
+      } catch (err) {
+        logger.error(`${err.message}\n`, err);
+      }
+    });
     return this;
   }
 }
