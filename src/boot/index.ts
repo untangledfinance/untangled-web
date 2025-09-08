@@ -1,8 +1,36 @@
 import '../global'; // load global context
-import { Context } from '../core/context';
 import { BeforeInit } from '../core/ioc';
-import { withName } from '../core/types';
-import { CONFIGURATIONS_CONTEXT_KEY } from './loaders';
+import { classOf, getSymbol, withName, withSymbol } from '../core/types';
+import { runConfigs } from './loaders';
+
+const BootSymbol = Symbol.for('__boot__');
+
+/**
+ * Attaches given loaders to be executed before a specific bean class
+ * initialization. The bean must be instantiated via the {@link boot}
+ * function in order to actually execute the loaders. For the legacy
+ * version, see the {@link Boot.Legacy} decorator.
+ * @param loaders a list of asynchronous functions executing in order.
+ */
+export function Boot(...loaders: Function[]) {
+  const legacy = (this as any)?.legacy === true;
+  const beforeInit = async () => {
+    for (const loader of loaders) {
+      await loader();
+    }
+  };
+  return function <T = any>(cls: Class<T>) {
+    class Bootable extends (cls as Class<any>) {
+      @BeforeInit
+      private async __boot__() {
+        await beforeInit();
+      }
+    }
+    const boot = legacy ? () => Promise.resolve() : beforeInit;
+    const bootable = legacy ? withName(Bootable, cls.name) : cls;
+    return withSymbol(bootable, BootSymbol, boot) as unknown as Class<T>;
+  };
+}
 
 /**
  * Starts executing given loaders before running other configured
@@ -12,19 +40,34 @@ import { CONFIGURATIONS_CONTEXT_KEY } from './loaders';
  * inside any loader to avoid further issues.
  * @param loaders a list of asynchronous functions executing in order.
  */
-export function Boot(...loaders: Function[]) {
-  const boot = async () => {
-    for (const loader of loaders) {
-      await loader();
-    }
-  };
-  return function <T = any>(cls: Class<T>) {
-    class Bootable extends (cls as Class<any>) {
-      @BeforeInit
-      private async __boot__() {
-        await Context.for(CONFIGURATIONS_CONTEXT_KEY).run(Configs, boot);
+Boot.Legacy = function (...loaders: Function[]) {
+  return Boot.bind({
+    legacy: true,
+  })(...loaders);
+};
+
+/**
+ * Boots a given bean class.
+ * @param cls the bean class.
+ * @param args arguments to instantiate the bean.
+ * @returns instance of the bean.
+ * @throws an error if the bean class isn't decorated with {@link Boot}.
+ */
+export function boot<T = any>(cls: Class<T>, ...args: any[]) {
+  return runConfigs(Configs, async () => {
+    let beforeInit = getSymbol<() => Promise<void>>(cls, BootSymbol);
+    if (typeof beforeInit !== 'function') {
+      const clz = classOf(cls); // original class
+      beforeInit = getSymbol(clz, BootSymbol);
+      if (typeof beforeInit !== 'function') {
+        throw new Error(
+          `Class '${cls.name}' must be used with \`${Boot.name}\` decorator`
+        );
       }
     }
-    return withName(Bootable, cls.name) as unknown as Class<T>;
-  };
+    await beforeInit();
+    return new cls(...args);
+  });
 }
+
+export default boot; // FIXME: somehow default import not working

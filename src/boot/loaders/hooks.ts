@@ -24,3 +24,15 @@ export function useConfigs<
     }
   >(CONFIGURATIONS_CONTEXT_KEY).getOrThrow();
 }
+
+/**
+ * Executes a function within a specific {@link Context}.
+ * @param configs the initial {@link Context} value.
+ * @param func the function.
+ */
+export function runConfigs<T extends Configurations = Configurations, R = any>(
+  configs: Partial<T>,
+  func: () => R
+) {
+  return Context.for<T>(CONFIGURATIONS_CONTEXT_KEY).run(configs as T, func);
+}

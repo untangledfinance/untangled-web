@@ -34,7 +34,7 @@ export function asSingleton<C extends Class<any>>(cls: C) {
     } as C,
     cls.name
   );
-  return withSymbol(singleton, SingletonSymbol);
+  return withClass(withSymbol(singleton, SingletonSymbol), cls);
 }
 
 /**
