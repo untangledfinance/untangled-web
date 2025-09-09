@@ -155,6 +155,10 @@ export abstract class Group implements Router {
         }
       }
       this.errorHandler = error;
+    } else {
+      this.router['all']('*', async (req, res) => {
+        this.send(res, await error(new NotFoundError(), Helper.toReq(req)));
+      });
     }
     return this;
   }
