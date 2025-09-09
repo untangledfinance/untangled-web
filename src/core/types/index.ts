@@ -1,5 +1,7 @@
 const ClassSymbol = Symbol.for('__class__');
 
+export type ClassDecorator = <T = any>(cls: Class<T>) => Class<T>;
+
 export type Supplier<V> = () => V;
 
 export type NullableType<V> = V | undefined | null;

@@ -8,7 +8,9 @@
   },
   "scripts": {
     "postinstall": "cd ../../ && bun run build",
-    "start": "bun --env-file ../../.env ./src/index.ts --hot",
+    "dev": "bun --env-file ../../.env ./src/index.ts --hot",
+    "build": "bun build --target=node --outdir=./dist/ ./src/index.ts",
+    "start": "bun run build && node ./dist/index.js",
     "format": "prettier --write \"./src/**/*.(ts|js|json)\" \"./src/*.(ts|js|json)\" \"./*.(ts|js|json)\""
   },
   "type": "module"
