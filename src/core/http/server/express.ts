@@ -154,8 +154,12 @@ export abstract class Group implements Router {
           );
         }
       }
-      this.errorHandler = error;
+    } else {
+      this.router['all']('*', () => {
+        throw new NotFoundError();
+      });
     }
+    this.errorHandler = error;
     return this;
   }
 
