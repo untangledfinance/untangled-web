@@ -10,7 +10,6 @@
     "ioc",
     "web"
   ],
-  "type": "module",
   "author": {
     "name": "Untangled Developer",
     "email": "dev@untangled.finance"

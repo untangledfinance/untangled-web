@@ -7,11 +7,10 @@
     "typescript": "^5"
   },
   "scripts": {
-    "postinstall": "cd ../../ && bun run build",
+    "postinstall": "cd ../../ && test -f package.json && bun run build || test true",
     "dev": "bun --env-file ../../.env ./src/index.ts --hot",
-    "build": "bun build --target=node --outdir=./dist/ ./src/index.ts",
-    "start": "bun run build && node ./dist/index.js",
+    "build": "bun run ./scripts/esbuild.ts",
+    "start": "bun run build && node ./dist/index.cjs",
     "format": "prettier --write \"./src/**/*.(ts|js|json)\" \"./src/*.(ts|js|json)\" \"./*.(ts|js|json)\""
-  },
-  "type": "module"
+  }
 }
