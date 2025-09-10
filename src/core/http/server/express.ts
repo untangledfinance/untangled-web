@@ -325,7 +325,22 @@ export abstract class Application extends Group implements Server, OnStop {
     this.emit('start');
     const app = express()
       .options('*', Helper.corsHandler(this.corsOptions))
+      .use(
+        express.urlencoded({
+          extended: true,
+        })
+      )
       .use(express.json())
+      .use((req: express.Request & { rawBody?: string }) => {
+        req.rawBody = '';
+        req.setEncoding('utf8');
+        req.on('data', function (chunk) {
+          req.rawBody += chunk;
+        });
+        req.on('end', function () {
+          req.next();
+        });
+      })
       .use(
         (
           req: express.Request,
