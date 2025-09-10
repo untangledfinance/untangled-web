@@ -1,7 +1,6 @@
 import express from 'express';
 import http from 'http';
-import { Readable } from 'stream';
-import { isClass, profiles } from '../../types';
+import { hasSymbol, isClass, profiles, withSymbol } from '../../types';
 import { Step } from '../../validation';
 import { createLogger } from '../../logging';
 import { OnStop } from '../../ioc';
@@ -41,6 +40,7 @@ class Helper {
         queryStringPosition >= 0 && req.url.slice(queryStringPosition),
       params: req.params,
       body: req.body,
+      rawBody: (req as any).rawBody as string,
     });
   }
 
@@ -51,12 +51,8 @@ class Helper {
     });
   }
 
-  static corsHandler(options: Partial<CorsOptions> = {}) {
-    return (
-      req: express.Request,
-      res: express.Response,
-      next: express.NextFunction
-    ) => {
+  static corsHandler(options: Partial<CorsOptions> = {}): express.Handler {
+    return (_, res: express.Response) => {
       const { allowedOrigins, allowedHeaders, allowedMethods, maxAge } =
         options;
       allowedOrigins &&
@@ -111,19 +107,19 @@ export abstract class Group implements Router {
   /**
    * Tries sending the {@link Res}.
    */
-  protected send(res: express.Response, response: Res | Response) {
-    if (!res.writableEnded && !(res as any)[RoutedSymbol]) {
-      (res as any)[RoutedSymbol] = true;
+  protected async send(res: express.Response, response: Res | Response) {
+    if (!res.writableEnded && !hasSymbol(res, RoutedSymbol)) {
+      withSymbol(res, RoutedSymbol);
+
       if (response instanceof Response) {
-        response.headers.forEach((value, key) => {
-          if (key.toLowerCase() !== 'content-encoding') {
-            res.setHeader(key, value);
-          }
-        });
-        res.status(response.status);
-        // @ts-ignore
-        return Readable.fromWeb(response.body).pipe(res);
+        for (const key of response.headers.keys()) {
+          const value = response.headers.get(key);
+          res.setHeader(key, value);
+        }
+        const data = Buffer.from(await response.arrayBuffer());
+        return res.status(response.status).send(data);
       }
+
       if (response instanceof ResObj) {
         const { data, status, headers } = response;
         for (const key of Object.keys(headers ?? {})) {
@@ -131,6 +127,7 @@ export abstract class Group implements Router {
         }
         return res.status(status).send(data);
       }
+
       return res.send(response as any);
     }
   }
@@ -139,16 +136,16 @@ export abstract class Group implements Router {
     this.router = express.Router();
     if (routes?.length && fetcher) {
       for (const route of routes) {
-        const fetch = fetcher.bind(this)(route) as (
-          req: Req,
-          res: Res
-        ) => Promise<Res | Response>;
+        const fetch: Handler = fetcher.bind(this)(route);
         const handler = async (
           req: express.Request,
           res: express.Response,
           next: express.NextFunction
         ) => {
-          this.send(res, await fetch(Helper.toReq(req), Helper.toRes(res)));
+          await this.send(
+            res,
+            await fetch(Helper.toReq(req), Helper.toRes(res))
+          );
           next();
         };
         const method = route.method;
@@ -194,12 +191,15 @@ export abstract class Group implements Router {
         next: express.NextFunction
       ) => {
         try {
-          this.send(res, await handle(Helper.toReq(req), Helper.toRes(res)));
+          await this.send(
+            res,
+            await handle(Helper.toReq(req), Helper.toRes(res))
+          );
         } catch (err) {
           if (!(err instanceof HttpError)) {
             logger.error(`${err.message}\n`, err);
           }
-          this.send(res, await this.errorHandler(err, Helper.toReq(req)));
+          await this.send(res, await this.errorHandler(err, Helper.toReq(req)));
         }
         next();
       }
@@ -209,6 +209,10 @@ export abstract class Group implements Router {
 
   route(method: HttpMethod, path: string, handler: Handler) {
     return this._route(method, path, handler);
+  }
+
+  request(path: string, handler: Handler) {
+    return this._route('*', path, handler);
   }
 
   get(path: string, handler: Handler) {
@@ -325,7 +329,22 @@ export abstract class Application extends Group implements Server, OnStop {
     this.emit('start');
     const app = express()
       .options('*', Helper.corsHandler(this.corsOptions))
+      .use(
+        express.urlencoded({
+          extended: true,
+        })
+      )
       .use(express.json())
+      .use((req: express.Request & { rawBody?: string }) => {
+        req.rawBody = '';
+        req.setEncoding('utf8');
+        req.on('data', function (chunk) {
+          req.rawBody += chunk;
+        });
+        req.on('end', function () {
+          req.next();
+        });
+      })
       .use(
         (
           req: express.Request,
@@ -348,7 +367,10 @@ export abstract class Application extends Group implements Server, OnStop {
         ) => {
           const { req } = HttpContext.get();
           this.errorHandler &&
-            this.send(res, await this.errorHandler(new NotFoundError(), req));
+            (await this.send(
+              res,
+              await this.errorHandler(new NotFoundError(), req)
+            ));
           next();
         }
       )
