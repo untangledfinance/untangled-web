@@ -1,4 +1,4 @@
-import { sign, Algorithm, verify } from 'jsonwebtoken';
+import { sign, Algorithm, verify, decode } from 'jsonwebtoken';
 
 /**
  * JSON Web Token utilities.
@@ -19,14 +19,21 @@ export class Jwt {
   }
 
   /**
-   * Signs a payload with pre-configured private key.
+   * Signs a payload.
    * @param payload the payload object.
    * @param expiry number of seconds until the generated token expires.
    * @param algorithm the signing algorithm.
+   * @param signingKey the signing key (default: the configured private key).
    * @returns a token string for further verification.
    */
-  sign(payload: any, expiry?: number, algorithm?: Algorithm) {
-    return sign(payload, this.privateKey, {
+  sign(
+    payload: any,
+    expiry?: number,
+    algorithm?: Algorithm,
+    signingKey?: string
+  ) {
+    return sign(payload, signingKey ?? this.privateKey, {
+      allowInsecureKeySizes: true,
       expiresIn: expiry ?? this.expiry,
       algorithm: algorithm ?? this.algorithm,
     });
@@ -35,14 +42,28 @@ export class Jwt {
   /**
    * Verifies a given token.
    * @param token the token string.
+   * @param verifyingKey the verifying key (default: the configured private key).
    * @param unsafe to not throwing error when verification fails.
    * @throws an error if failed.
    */
-  verify<T>(token: string, unsafe = false) {
+  verify<T>(
+    token: string,
+    verifyingKey?: string,
+    unsafe = false
+  ): T | undefined {
     try {
-      return verify(token, this.privateKey) as T;
+      return verify(token, verifyingKey ?? this.privateKey) as T;
     } catch (err) {
       if (!unsafe) throw err;
     }
+  }
+
+  /**
+   * Extracts a token's payload.
+   * @param token the token string.
+   */
+  decode<T>(token: string): T | undefined {
+    const payload = decode(token);
+    return payload !== null ? (payload as T) : undefined;
   }
 }

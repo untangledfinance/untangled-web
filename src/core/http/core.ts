@@ -3,7 +3,6 @@ import { createLogger } from '../logging';
 import { HttpError } from './error';
 import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
 import { HttpContext } from './context';
-import { HttpClient } from './client';
 
 const logger = createLogger('http');
 
@@ -27,6 +26,7 @@ export type Req<T = any> = {
   queryString?: string;
   params?: Record<string, string>;
   body?: T;
+  rawBody?: string;
 };
 
 export class ReqObj<T = any> extends Obj {
@@ -38,6 +38,7 @@ export class ReqObj<T = any> extends Obj {
   queryString?: string;
   params?: Record<string, string>;
   body?: T;
+  rawBody?: string;
 }
 
 export type Res<T = any> = {
@@ -503,20 +504,22 @@ class RoutingConfigurer {
                 try {
                   const proxyHeaders = Object.entries(
                     r.req.headers ?? {}
-                  ).reduce((h, [k, v]) => {
-                    k = k.toLowerCase();
-                    if (k !== 'host') {
-                      h[k] = [v].flat();
-                    }
-                    return h;
-                  }, {});
+                  ).reduce(
+                    (h, [k, v]) => {
+                      k = k.toLowerCase();
+                      if (k !== 'host') {
+                        h[k] = [v].flat();
+                      }
+                      return h;
+                    },
+                    {
+                      'X-Forwarded-Path': r.req.path,
+                    } as Record<string, string | string[]>
+                  );
                   const proxyData = !['GET', 'OPTIONS', 'HEAD'].includes(
                     r.req.method.toUpperCase()
                   )
-                    ? MediaConverter.serialize(
-                        r.req.headers['content-type'] as string,
-                        r.req.body
-                      )
+                    ? req.rawBody
                     : undefined;
 
                   let completeProxyUrl = proxyUrl.toString();
@@ -530,22 +533,16 @@ class RoutingConfigurer {
                     }
                   }
 
-                  logger.info(`Proxying`, {
+                  logger.debug(`Proxying`, {
                     from: `${r.req.path}${r.req.queryString || ''}`,
                     to: completeProxyUrl,
                   });
-                  const client = HttpClient.create({
-                    silent: true,
+                  const proxyRes = await fetch(completeProxyUrl, {
+                    method: r.req.method,
+                    headers: proxyHeaders as Record<string, string>,
+                    body: proxyData,
                   });
-                  const proxyRes = HttpClient.toResponse(
-                    await client.request({
-                      url: completeProxyUrl,
-                      method: r.req.method,
-                      headers: proxyHeaders,
-                      data: proxyData,
-                    })
-                  );
-                  logger.info(`Proxy completed`, {
+                  logger.debug(`Proxied`, {
                     to: completeProxyUrl,
                     status: proxyRes.status,
                   });
@@ -700,6 +697,13 @@ export interface Router {
    */
   route<T = Res>(method: HttpMethod, path: string, handler: Handler<T>): this;
   /**
+   * Configures a `*` routing at a specific path.
+   * @param path the path.
+   * @param handler the handler.
+   * @see route
+   */
+  request<T = Res>(path: string, handler: Handler<T>): this;
+  /**
    * Configures a `GET` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
@@ -783,7 +787,7 @@ export interface Server extends Router {
 
 /**
  * Automatically configures a given {@link Router} following its decorators.
- * @param router the {@link Router}
+ * @param router the {@link Router}.
  */
 export function configure(router: Router, ...filters: Filter[]) {
   return router.apply(
