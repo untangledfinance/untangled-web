@@ -15,7 +15,9 @@ import {
   Handler,
   HttpMethod,
   Req,
+  ReqObj,
   Res,
+  ResObj,
   RouteOptions,
   Router,
   ServeOptions,
@@ -28,9 +30,9 @@ const logger = createLogger('express');
 const RoutedSymbol = Symbol.for('__routed__');
 
 class Helper {
-  static toReq(req: express.Request) {
+  static toReq(req: express.Request): ReqObj {
     const queryStringPosition = req.url.indexOf('?');
-    return {
+    return new ReqObj({
       method: req.method,
       path: req.path,
       headers: req.headers,
@@ -39,14 +41,14 @@ class Helper {
         queryStringPosition >= 0 && req.url.slice(queryStringPosition),
       params: req.params,
       body: req.body,
-    } as Req;
+    });
   }
 
-  static toRes(res: express.Response) {
-    return {
+  static toRes(res: express.Response): ResObj {
+    return new ResObj({
       status: res.statusCode ?? StatusCode.OK,
       headers: res.getHeaders(),
-    } as Res;
+    });
   }
 
   static corsHandler(options: Partial<CorsOptions> = {}) {
@@ -122,11 +124,14 @@ export abstract class Group implements Router {
         // @ts-ignore
         return Readable.fromWeb(response.body).pipe(res);
       }
-      const { data, status, headers } = response;
-      for (const key of Object.keys(headers ?? {})) {
-        res.setHeader(key, headers[key]);
+      if (response instanceof ResObj) {
+        const { data, status, headers } = response;
+        for (const key of Object.keys(headers ?? {})) {
+          res.setHeader(key, headers[key]);
+        }
+        return res.status(status).send(data);
       }
-      res.status(status).send(data);
+      return res.send(response as any);
     }
   }
 
@@ -155,10 +160,6 @@ export abstract class Group implements Router {
         }
       }
       this.errorHandler = error;
-    } else {
-      this.router['all']('*', async (req, res) => {
-        this.send(res, await error(new NotFoundError(), Helper.toReq(req)));
-      });
     }
     return this;
   }
@@ -184,7 +185,7 @@ export abstract class Group implements Router {
     if (!(routingMethod in this.router)) {
       throw new Error(`Invalid routing method: ${routingMethod}`);
     }
-    const handle = handler.bind(this) as Handler;
+    const handle: Handler = handler.bind(this);
     this.router[routingMethod](
       path,
       async (

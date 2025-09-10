@@ -1,5 +1,25 @@
 const ClassSymbol = Symbol.for('__class__');
 
+/**
+ * @deprecated use `lodash` instead.
+ * An object.
+ */
+export class Obj {
+  /**
+   * Makes a clone of a given object.
+   * @param obj the object.
+   * @throws an error if the object is... not an 'object'.
+   */
+  constructor(obj = {}) {
+    if (typeof obj !== 'object') {
+      throw new Error(`Obj must be 'object'`);
+    }
+    Object.entries(obj).forEach(([key, value]) => {
+      this[key] = value; // FIXME: Must avoid prototype pollution
+    });
+  }
+}
+
 export type ClassDecorator = <T = any>(cls: Class<T>) => Class<T>;
 
 export type Supplier<V> = () => V;

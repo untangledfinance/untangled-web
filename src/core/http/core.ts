@@ -1,4 +1,4 @@
-import { profiles, withName } from '../types';
+import { Obj, profiles, withName } from '../types';
 import { createLogger } from '../logging';
 import { HttpError } from './error';
 import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
@@ -29,12 +29,30 @@ export type Req<T = any> = {
   body?: T;
 };
 
+export class ReqObj<T = any> extends Obj {
+  method: string;
+  url?: string;
+  path?: string;
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
+  queryString?: string;
+  params?: Record<string, string>;
+  body?: T;
+}
+
 export type Res<T = any> = {
   headers?: Record<string, string | string[]>;
   data?: T;
   status?: number;
   completed?: boolean;
 };
+
+export class ResObj<T = any> extends Obj {
+  headers?: Record<string, string | string[]>;
+  data?: T;
+  status?: number;
+  completed?: boolean;
+}
 
 export type RequestHandler<R = any, T = any> = (
   req: Req<R>,
@@ -388,7 +406,7 @@ class RoutingConfigurer {
         method: HttpMethod;
         path: string;
       };
-      return {
+      return new ResObj({
         completed: true,
         data: JSON.stringify({
           timestamp: Date.now(),
@@ -401,7 +419,7 @@ class RoutingConfigurer {
         headers: {
           'Content-Type': 'application/json',
         },
-      };
+      });
     };
   }
 
@@ -417,55 +435,58 @@ class RoutingConfigurer {
           ...(options?.headers || {}),
         };
         const handleError = RoutingConfigurer.errorAdvisor();
-        return async function (req, res = {}) {
+        return async function (req: Req, res: Res = {}) {
           try {
             const { req: ctxReq = req } = HttpContext.get() ?? {};
-            req = {
+            req = new ReqObj({
               ...req,
               // retain original request's url & path
               url: ctxReq.url,
               path: ctxReq.path,
-            };
+            });
             const next = async (
-              r: { req: Req; res: Res },
+              r: { req: ReqObj; res: ResObj },
               i = 0
-            ): Promise<{ req: Req; res: Res | Response }> => {
+            ): Promise<{ req: ReqObj; res: ResObj | Response }> => {
               if (r.res instanceof Response) return r;
               if (r.res.completed) {
                 return {
-                  req: r.req,
-                  res: {
+                  req: new ReqObj(r.req),
+                  res: new ResObj({
                     status: StatusCode.OK,
                     ...r.res,
                     headers: {
                       ...headers,
                       ...(r.res.headers ?? {}),
                     },
-                  },
+                  }),
                 }; // no need to handle completed request
               }
 
               const filter = filters[i];
               if (filter) {
-                const filtered = await filter(r.req, r.res, (rq, rs) =>
-                  next({ req: rq, res: rs }, i + 1)
+                const filtered = await filter(
+                  new ReqObj(r.req),
+                  new ResObj(r.res),
+                  (rq, rs) =>
+                    next({ req: new ReqObj(rq), res: new ResObj(rs) }, i + 1)
                 );
                 if (filtered.res instanceof Response) return filtered;
                 if (filtered.res.completed)
                   return {
-                    req: filtered.req,
-                    res: {
+                    req: new ReqObj(filtered.req),
+                    res: new ResObj({
                       status: StatusCode.OK,
                       ...filtered.res,
                       headers: {
                         ...headers,
                         ...(filtered.res.headers ?? {}),
                       },
-                    },
+                    }),
                   };
               }
 
-              HttpContext.set({ req: r.req });
+              HttpContext.set({ req: new ReqObj(r.req) });
 
               let value = null;
               let status = options?.status;
@@ -530,7 +551,7 @@ class RoutingConfigurer {
                   });
 
                   return {
-                    req: r.req,
+                    req: new ReqObj(r.req),
                     res: proxyRes,
                   };
                 } catch (err) {
@@ -539,14 +560,14 @@ class RoutingConfigurer {
                 }
               } else if (handler) {
                 value = (controller ? handler.bind(controller) : handler)(
-                  r.req,
-                  r.res
+                  new ReqObj(r.req),
+                  new ResObj(r.res)
                 );
               }
               value = value instanceof Promise ? await value : value;
               if (value instanceof Response) {
                 return {
-                  req: r.req,
+                  req: new ReqObj(r.req),
                   res: value,
                 };
               }
@@ -554,8 +575,8 @@ class RoutingConfigurer {
                 ? MediaConverter.serialize(contentType, value)
                 : null;
               return {
-                req: r.req,
-                res: {
+                req: new ReqObj(r.req),
+                res: new ResObj({
                   completed: true,
                   data: content,
                   status: status ?? StatusCode.OK,
@@ -563,11 +584,14 @@ class RoutingConfigurer {
                     ...headers,
                     ...(res.headers ?? {}),
                   },
-                },
+                }),
               };
             };
-            const r = await next({ req, res });
-            return r.res;
+            const r = await next({
+              req: new ReqObj(req),
+              res: new ResObj(res),
+            });
+            return r.res as ResObj | Response;
           } catch (err) {
             if (!(err instanceof HttpError)) {
               logger.error(`${err.message}\n`, err);
@@ -593,10 +617,7 @@ export interface RouteOptions {
    * Handles a {@link Route}.
    * @returns a handler to process the {@link Req}.
    */
-  fetcher(
-    route: Omit<Route, 'handler'>,
-    bound?: Router
-  ): (req: Req, res?: Res) => Promise<Res | Response>;
+  fetcher<T = Res>(route: Omit<Route, 'handler'>, bound?: Router): Handler<T>;
 }
 
 export interface ServeOptions extends RouteOptions {
@@ -645,7 +666,10 @@ export type Filter<T = any> = (
   res: Res | Response;
 }>;
 
-export type Handler = (req: Req, res: Res) => Promise<Res | Response>;
+export type Handler<T = Res> = (
+  req: Req,
+  res: Res
+) => Promise<Res | Response | T>;
 
 export interface Router {
   /**
@@ -674,42 +698,42 @@ export interface Router {
    * @param path the path.
    * @param handler the handler.
    */
-  route(method: HttpMethod, path: string, handler: Handler): this;
+  route<T = Res>(method: HttpMethod, path: string, handler: Handler<T>): this;
   /**
    * Configures a `GET` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  get(path: string, handler: Handler): this;
+  get<T = Res>(path: string, handler: Handler<T>): this;
   /**
    * Configures a `POST` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  post(path: string, handler: Handler): this;
+  post<T = Res>(path: string, handler: Handler<T>): this;
   /**
    * Configures a `PUT` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  put(path: string, handler: Handler): this;
+  put<T = Res>(path: string, handler: Handler<T>): this;
   /**
    * Configures a `PATCH` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  patch(path: string, handler: Handler): this;
+  patch<T = Res>(path: string, handler: Handler<T>): this;
   /**
    * Configures a `DELETE` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  delete(path: string, handler: Handler): this;
+  delete<T = Res>(path: string, handler: Handler<T>): this;
   /**
    * Uses another {@link Router} as a routing group.
    * @param prefix the routing prefix.
