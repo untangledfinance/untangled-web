@@ -109,7 +109,7 @@ jwt.allowAnonymous = function <T = any>(
   return authFilter<T>(({ headers }) => {
     const authorization = headers?.authorization as string;
     const token = authorization?.replace(/^[Bb]earer\s+/g, '')?.trim();
-    return beanOf(Jwt).verify(token, true) || ANONYMOUS;
+    return beanOf(Jwt).verify(token, undefined, true) || ANONYMOUS;
   })(req, res, undefined, ...permissions);
 };
 
