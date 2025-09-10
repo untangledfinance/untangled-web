@@ -1,5 +1,6 @@
 import '../global'; // load global context
-import { BeforeInit } from '../core/ioc';
+import { BeforeInit, shutdown } from '../core/ioc';
+import { createLogger } from '../core/logging';
 import {
   ClassDecorator,
   classOf,
@@ -8,6 +9,8 @@ import {
   withSymbol,
 } from '../core/types';
 import { BootLoader, globalConfigs, runConfigs } from './loaders';
+
+const logger = createLogger('boot');
 
 const BootSymbol = Symbol.for('__boot__');
 
@@ -33,8 +36,13 @@ type BootDecorator = ((...loaders: BootLoader[]) => ClassDecorator) & {
 export const Boot: BootDecorator = function (...loaders: BootLoader[]) {
   const legacy = (this as any)?.legacy === true;
   const beforeInit = async () => {
-    for (const loader of loaders) {
-      await loader();
+    try {
+      for (const loader of loaders) {
+        await loader();
+      }
+    } catch (err) {
+      logger.error(`Loader failed: ${err.message}\n`, err);
+      shutdown();
     }
   };
   return function <T = any>(cls: Class<T>) {
