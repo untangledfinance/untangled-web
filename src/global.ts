@@ -53,8 +53,9 @@ const useSubscriber = () => {
 ///
 
 const asLoggingArgs = (data: any[]): [string, ...any[]] => {
-  const message = typeof data.at(0) === 'string' ? data.at(0) : '--';
-  const args = message ? data.slice(1) : data;
+  const message =
+    typeof data.at(0) === 'string' ? data.at(0) : data.at(0)?.toString() || '';
+  const args = data.slice(1);
   return [message, ...args];
 };
 
