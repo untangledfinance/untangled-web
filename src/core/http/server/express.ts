@@ -41,6 +41,7 @@ class Helper {
         queryStringPosition >= 0 && req.url.slice(queryStringPosition),
       params: req.params,
       body: req.body,
+      rawBody: (req as any).rawBody as string,
     });
   }
 
@@ -121,8 +122,35 @@ export abstract class Group implements Router {
           }
         });
         res.status(response.status);
-        // @ts-ignore
-        return Readable.fromWeb(response.body).pipe(res);
+
+        if (response.body) {
+          // Handle the Web Response body properly
+          const reader = response.body.getReader();
+          const pump = async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  res.end();
+                  break;
+                }
+                if (!res.write(value)) {
+                  // Wait for drain event if buffer is full
+                  await new Promise((resolve) => res.once('drain', resolve));
+                }
+              }
+            } catch (err) {
+              logger.error('Stream error:', err);
+              if (!res.headersSent) {
+                res.status(500).end();
+              }
+            }
+          };
+          pump();
+          return;
+        } else {
+          return res.end();
+        }
       }
       if (response instanceof ResObj) {
         const { data, status, headers } = response;
@@ -325,7 +353,22 @@ export abstract class Application extends Group implements Server, OnStop {
     this.emit('start');
     const app = express()
       .options('*', Helper.corsHandler(this.corsOptions))
+      .use(
+        express.urlencoded({
+          extended: true,
+        })
+      )
       .use(express.json())
+      .use((req: express.Request & { rawBody?: string }) => {
+        req.rawBody = '';
+        req.setEncoding('utf8');
+        req.on('data', function (chunk) {
+          req.rawBody += chunk;
+        });
+        req.on('end', function () {
+          req.next();
+        });
+      })
       .use(
         (
           req: express.Request,
