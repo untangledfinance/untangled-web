@@ -26,6 +26,14 @@ type BootDecorator = ((...loaders: BootLoader[]) => ClassDecorator) & {
   Legacy: (...loaders: BootLoader[]) => ClassDecorator;
 };
 
+export interface Bootable {
+  /**
+   * Executes after the bean class initialization.
+   * @param args command-line arguments.
+   */
+  main: (...args: string[]) => void | Promise<void>;
+}
+
 /**
  * Attaches given loaders to be executed before a specific bean class
  * initialization. The bean must be instantiated via the {@link boot}
@@ -46,14 +54,14 @@ export const Boot: BootDecorator = function (...loaders: BootLoader[]) {
     }
   };
   return function <T = any>(cls: Class<T>) {
-    class Bootable extends (cls as Class<any>) {
+    class clz extends (cls as Class<any>) {
       @BeforeInit
       private async __boot__() {
         await runConfigs(globalConfigs(), beforeInit);
       }
     }
     const boot = legacy ? () => Promise.resolve() : beforeInit;
-    const bootable = legacy ? withName(Bootable, cls.name) : cls;
+    const bootable = legacy ? withName(clz, cls.name) : cls;
     return withSymbol(bootable, BootSymbol, boot) as unknown as Class<T>;
   };
 };
@@ -71,7 +79,7 @@ Boot.Legacy = function (...loaders: BootLoader[]) {
  * @returns instance of the bean.
  * @throws an error if the bean class isn't decorated with {@link Boot}.
  */
-export function boot<T = any>(cls: Class<T>, ...args: any[]) {
+export function boot<T = Bootable>(cls: Class<T>, ...args: any[]) {
   return runConfigs(globalConfigs(), async () => {
     let beforeInit = getSymbol<() => Promise<void>>(cls, BootSymbol);
     if (typeof beforeInit !== 'function') {
@@ -84,6 +92,8 @@ export function boot<T = any>(cls: Class<T>, ...args: any[]) {
       }
     }
     await beforeInit();
-    return new cls(...args);
+    const instance = new cls(...args);
+    setImmediate(() => (instance as Bootable)?.main?.(...process.argv));
+    return instance;
   });
 }
