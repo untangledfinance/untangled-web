@@ -28,6 +28,7 @@
   "connectors/pubsub",
   "connectors/queue",
   "connectors/storage",
+  "connectors/untangled",
   "boot",
   "boot/_dev",
   "boot/loaders",

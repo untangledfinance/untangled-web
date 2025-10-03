@@ -1,17 +1,32 @@
 import { parseArgs } from 'util';
 
+type BumpType = 'major' | 'minor' | 'patch' | 'beta';
+
+function now() {
+  const pad = (val: number, length = 2) => val.toString().padStart(length, '0');
+  const d = new Date();
+  const year = d.getUTCFullYear();
+  const month = pad(d.getUTCMonth() + 1);
+  const date = pad(d.getUTCDate());
+  const hour = pad(d.getUTCHours());
+  const minute = pad(d.getUTCMinutes());
+  const second = pad(d.getUTCSeconds());
+  return [year, month, date, hour, minute, second].join('');
+}
+
 async function getLatestVersion(
   options: Partial<{
     name: string;
     registry: string;
+    nossl?: boolean;
   }>
 ) {
-  const { name, registry } = options || {};
+  const { name, registry, nossl } = options || {};
   if (!name || !registry) {
     throw new Error('name, registry are required');
   }
 
-  const res = await fetch(`https://${registry}/${name}`);
+  const res = await fetch(`${nossl ? 'http' : 'https'}://${registry}/${name}`);
   const pkg = (await res.json()) as {
     time: {
       [version: string]: string;
@@ -29,11 +44,24 @@ async function getLatestVersion(
   return versions[versions.length - 1];
 }
 
-function minorBump(version: string) {
-  if (!version) return '1.0.0';
-  const v = version.split('.').map(Number);
-  v[2]++;
-  return v.join('.');
+function bump(version: string = '0.0.0', type: BumpType = 'patch') {
+  let [major, minor, patch] = version.split('.').map(Number);
+  switch (type) {
+    case 'major':
+      major++;
+      break;
+    case 'minor':
+      minor++;
+      break;
+    case 'patch':
+      patch++;
+      break;
+    case 'beta':
+      patch++;
+      patch = (patch + `-beta.${now()}`) as any;
+      break;
+  }
+  return [major, minor, patch].join('.');
 }
 
 async function push(version: string) {
@@ -51,6 +79,14 @@ const { values } = parseArgs({
     registry: {
       type: 'string',
     },
+    type: {
+      type: 'string',
+      default: 'patch',
+    },
+    nossl: {
+      type: 'boolean',
+      default: false,
+    },
     push: {
       type: 'boolean',
       default: false,
@@ -59,6 +95,6 @@ const { values } = parseArgs({
 });
 
 await getLatestVersion(values)
-  .then(minorBump)
+  .then((version) => bump(version, values.type as BumpType))
   .then((version) => (values.push ? push(version) : Promise.resolve(version)))
   .then(console.log);

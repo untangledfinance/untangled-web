@@ -5,7 +5,8 @@ on:
       - '*'
 
 jobs:
-  build:
+  publish:
+    name: 'Build & Publish'
     runs-on: ubuntu-latest
     permissions:
       contents: read

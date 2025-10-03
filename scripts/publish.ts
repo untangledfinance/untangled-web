@@ -34,35 +34,55 @@ async function usePackage(dryrun?: boolean) {
   const oldPkg = structuredClone(pkg);
 
   const apply = async (
-    options: Partial<{ name: string; version: string; registry: string }>
+    options: Partial<{
+      name: string;
+      version: string;
+      registry: string;
+      nossl?: boolean;
+    }>
   ) => {
-    const { name, version, registry } = options || {};
+    const { name, version, registry, nossl } = options || {};
     if (!name || !version || !registry) {
       throw new Error('name, version, registry are required');
     }
+    const registryUrl = `${nossl ? 'http' : 'https'}://${registry}`;
     pkg.name = name;
     pkg.version = version;
     pkg.publishConfig = {
-      registry: `https://${registry}`,
+      registry: registryUrl,
     };
-    pkg.exports = modules.reduce((e, module) => {
-      e[`./${module}`] = {
-        import: `./dist/${module}/index.js`,
-        types: `./dist/${module}/index.d.ts`,
-      };
-      return e;
-    }, {});
+    pkg.exports = modules.reduce(
+      (e, module) => {
+        e[`./${module}`] = {
+          import: `./dist/${module}/index.js`,
+          types: `./dist/${module}/index.d.ts`,
+        };
+        return e;
+      },
+      {
+        '.': {
+          import: './dist/index.js',
+          types: './dist/index.d.ts',
+        },
+      } as Record<
+        string,
+        {
+          import: `./dist/${string}index.js`;
+          types: `./dist/${string}index.d.ts`;
+        }
+      >
+    );
     await writeFile('package.json', JSON.stringify(pkg, null, 2));
     dryrun && console.log(`[dryrun] Updated package.json:\n`, pkg);
     const authToken = process.env.NODE_AUTH_TOKEN;
     await writeFile(
       '.npmrc',
-      `registry=https://${registry}\n//${registry}:_authToken=${authToken}`
+      `registry=${registryUrl}\n//${registry}:_authToken=${authToken}`
     );
     dryrun &&
       console.log(
         `[dryrun] Created .npmrc:\n`,
-        `registry=https://${registry}\n//${registry}:_authToken=${authToken?.substring(0, 3)}***`
+        `registry=${registryUrl}\n//${registry}:_authToken=${authToken?.substring(0, 3)}***`
       );
   };
 
@@ -83,7 +103,7 @@ async function usePackage(dryrun?: boolean) {
         ? '[dryrun] Published.'
         : await Bun.$`bun publish`.text();
       console.log(result);
-    } catch (err) {
+    } catch (err: any) {
       return new Error(err?.stderr?.toString());
     }
   };
@@ -103,6 +123,10 @@ const { values } = parseArgs({
     },
     registry: {
       type: 'string',
+    },
+    nossl: {
+      type: 'boolean',
+      default: false,
     },
     dryrun: {
       type: 'boolean',
