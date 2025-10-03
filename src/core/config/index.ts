@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { isString } from '../types';
+import { isString, safe } from '../types';
 import { Catch } from '../validation';
 import { createLogger } from '../logging';
 
@@ -64,6 +64,6 @@ export const loadEnvFromJson = ConfigStore.loadEnvFromJson;
 /**
  * The default {@link ConfigStore} which should be used globally.
  */
-const Configs = new ConfigStore();
+const Configs = safe(new ConfigStore());
 
 export default Configs;
