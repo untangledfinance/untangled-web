@@ -1,6 +1,3 @@
-import { NotFoundError } from '../http';
-import { Optional } from '../types';
-
 /**
  * Validates the current step of an instance before its method invocation.
  * An {@link Error} is thrown when the instance's current step is greater
@@ -35,10 +32,12 @@ export function Step(order: number) {
 /**
  * Makes a method invocable only when a specific condition is met.
  * @param condition the condition.
- * @throws a {@link NotFoundError} if the condition is not fulfilled.
+ * @param message to specify message of the thrown {@link Error}.
+ * @throws an {@link Error} if the condition is not fulfilled.
  */
 export function When(
-  condition: Promise<boolean> | boolean | (() => Promise<boolean> | boolean)
+  condition: Promise<boolean> | boolean | (() => Promise<boolean> | boolean),
+  message?: string
 ) {
   return function (
     target: any,
@@ -47,14 +46,14 @@ export function When(
   ) {
     const func = descriptor.value;
     descriptor.value = async function (...args: any[]) {
-      const activation = Optional(
-        condition instanceof Function ? condition.bind(this)() : condition
-      ).map(async (val) => (val instanceof Promise ? await val : val));
-      const activated = activation.present && (await activation.get());
+      const activation: boolean | Promise<boolean> =
+        condition instanceof Function ? condition.bind(this)() : condition;
+      const activated =
+        activation instanceof Promise ? await activation : activation;
       if (activated) {
         return func.bind(this)(...args);
       }
-      throw new NotFoundError();
+      throw new Error(message);
     };
   };
 }

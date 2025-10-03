@@ -502,3 +502,133 @@ export function silent<T extends Function>(func: T): T {
     }
   }) as unknown as T;
 }
+
+/**
+ * Wraps a given object to support safely accessing its properties
+ * without concerning about the `undefined` errors.
+ * @param obj the object.
+ * @example
+ * const obj = {
+ *   a: {
+ *     b: undefined,
+ *     c: 69,
+ *   },
+ * };
+ * console.log(obj.a.b.c); // Uncaught TypeError: Cannot read properties of undefined (reading 'c')
+ * console.log(obj.d); // Uncaught TypeError: Cannot read properties of undefined (reading 'd')
+ * const safeObj = safe(obj);
+ * console.log(safeObj.a.b.c); // undefined
+ * console.log(safeObj.a.c); // 69
+ * console.log(safeObj.d); // undefined
+ */
+export const safe = (() => {
+  /**
+   * Wraps a primitive value in a proxy that returns the value itself, but
+   * allows safe property access that returns createSafeProxy() for any property.
+   */
+  function wrapPrimitive(value: any): any {
+    const target = {
+      [Symbol.toPrimitive]() {
+        return value;
+      },
+      valueOf() {
+        return value;
+      },
+      toString() {
+        return String(value);
+      },
+      toJSON() {
+        return value;
+      },
+      [Symbol.for('nodejs.util.inspect.custom')]() {
+        return value;
+      },
+    };
+
+    return new Proxy(target, {
+      get(target, prop) {
+        // If the property exists on the target (special methods), return it
+        if (prop in target) {
+          return (target as any)[prop];
+        }
+        // For any other property access, return a safe proxy
+        return createSafeProxy();
+      },
+    });
+  }
+
+  /**
+   * Creates a proxy that evaluates to undefined but allows property chaining.
+   * Any property access on this proxy will return another safe proxy.
+   * It's also callable and will return another safe proxy when called.
+   */
+  function createSafeProxy(): any {
+    // Use a function as the target so the proxy can be callable
+    const target = function () {
+      return createSafeProxy();
+    };
+
+    // Add special methods to the function
+    target[Symbol.toPrimitive] = () => undefined;
+    target.valueOf = () => undefined;
+    target.toString = () => 'undefined';
+    target.toJSON = () => undefined;
+    target[Symbol.for('nodejs.util.inspect.custom')] = () => undefined;
+
+    const handler: ProxyHandler<any> = {
+      get(target, prop) {
+        // If the property exists on the target (special methods), return it
+        if (prop in target) {
+          return target[prop];
+        }
+        // For any other property access, return another safe proxy
+        return createSafeProxy();
+      },
+      // Make the proxy callable - return another safe proxy
+      apply() {
+        return createSafeProxy();
+      },
+      // Return the actual own keys of the target function
+      ownKeys(target) {
+        return Reflect.ownKeys(target);
+      },
+      // Return the actual property descriptor if it exists, undefined otherwise
+      getOwnPropertyDescriptor(target, prop) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+        return descriptor;
+      },
+    };
+
+    return new Proxy(target, handler);
+  }
+
+  return function safe<T extends object>(obj: T): T {
+    if (obj === null || obj === undefined) {
+      return createSafeProxy() as T;
+    }
+
+    return new Proxy(obj, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+
+        // If the value is null or undefined, return a chainable safe proxy
+        if (value === null || value === undefined) {
+          return createSafeProxy();
+        }
+
+        // If the value is a function, return it as-is (functions should remain callable)
+        if (typeof value === 'function') {
+          return value;
+        }
+
+        // If the value is an object, wrap it with safe proxy recursively
+        if (typeof value === 'object' && value !== null) {
+          return safe(value);
+        }
+
+        // For primitive values (boolean, number, string), wrap them so property access is safe
+        return wrapPrimitive(value);
+      },
+    }) as T;
+  };
+})();
