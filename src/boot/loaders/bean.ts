@@ -120,7 +120,7 @@ async function initializeMessageQueue(
   reliable?: boolean
 ) {
   const queueConnector = (() => {
-    switch (configs.queue.type?.toLocaleLowerCase()) {
+    switch (configs.queue.type?.toLowerCase()) {
       case 'redis':
         return new (asBean<Queue>(
           reliable ? ReliableRedisQueue : RedisQueue,
@@ -142,7 +142,7 @@ async function initializeMessageQueue(
  */
 async function initializePublisher(configs: Configurations) {
   const publisher = (() => {
-    switch (configs.pubsub.type?.toLocaleLowerCase()) {
+    switch (configs.pubsub.type?.toLowerCase()) {
       case 'redis':
         return new (asBean<Publisher>(RedisPublisher, Publisher.name))({
           host: configs.pubsub.redis.host,
@@ -161,7 +161,7 @@ async function initializePublisher(configs: Configurations) {
  */
 async function initializeSubscriber(configs: Configurations) {
   const subscriber = (() => {
-    switch (configs.pubsub.type?.toLocaleLowerCase()) {
+    switch (configs.pubsub.type?.toLowerCase()) {
       case 'redis':
         return new (asBean<Subscriber>(RedisSubscriber, Subscriber.name))({
           host: configs.pubsub.redis.host,

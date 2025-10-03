@@ -98,7 +98,7 @@ export class Mongo implements OnInit, OnStop {
       user: username,
       pass: password,
       dbName: database,
-      tls,
+      tls: tls === true,
       rejectUnauthorized: true,
     });
     this.logger.info('Connected');

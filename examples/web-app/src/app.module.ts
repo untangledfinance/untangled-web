@@ -1,4 +1,4 @@
-import { Boot } from 'untangled-web/boot';
+import { Boot, Bootable } from 'untangled-web/boot';
 import * as bootLoaders from 'untangled-web/boot/loaders';
 import { HealthController } from 'untangled-web/boot/_dev';
 import { Application, Module } from 'untangled-web/core/http';
@@ -27,4 +27,11 @@ import { AppJob } from './app.job';
 @Module({
   controllers: [HealthController, AppController],
 })
-export class App extends Application {}
+export class App extends Application implements Bootable {
+  async main() {
+    await this.start({
+      host: Configs.app.host,
+      port: Configs.app.port,
+    });
+  }
+}
