@@ -221,35 +221,40 @@ export type MongoViewHttpResponse<T = any> = {
   data: T | undefined;
 };
 
+export type MongoHttpOptions = Partial<{
+  /**
+   * {@link Mongo} instance/bean to use.
+   */
+  use: MongoBean;
+  /**
+   * Name of the database to use.
+   */
+  dbName: string;
+  /**
+   * Authorization options.
+   */
+  auth: Partial<{
+    /**
+     * To skip {@link Auth}orization for specific collections (or all collections if `true`).
+     * If specific collections are passed, `auth.allowAnonymous` will be always `true`.
+     */
+    noAuth: boolean | string | string[];
+    /***
+     * Accepts no-auth {@link Req}uests. If `auth.noAuth` is passed, it will be always `true`.
+     */
+    allowAnonymous: boolean;
+  }>;
+}>;
+
 /**
  * Uses {@link Mongo} via REST APIs.
  */
-export function useMongoREST(
-  options: Partial<{
-    /**
-     * {@link Mongo} instance/bean to use.
-     */
-    use: MongoBean;
-    /**
-     * Name of the database to use.
-     */
-    dbName?: string;
-    /**
-     * Authorization options.
-     */
-    auth?: Partial<{
-      /**
-       * To skip {@link Auth}orization for specific collections (or all collections if `true`).
-       * If specific collections are passed, `auth.allowAnonymous` will be always `true`.
-       */
-      noAuth: boolean | string | string[];
-      /***
-       * Accepts no-auth {@link Req}uests. If `auth.noAuth` is passed, it will be always `true`.
-       */
-      allowAnonymous: boolean;
-    }>;
-  }> = {}
-) {
+export function useMongoREST(options: MongoHttpOptions = {}) {
+  const getMongo = () => {
+    const use = options.use || Mongo;
+    return use instanceof Mongo ? use : beanOf(use);
+  };
+
   const createCollectionAuthDecorator = (action: Action) => {
     const noAuthCollections = [] as string[];
     if (options.auth?.noAuth) {
@@ -268,6 +273,7 @@ export function useMongoREST(
       return `${collection}:${action}`;
     });
   };
+
   const ViewAuth = createCollectionAuthDecorator('view');
   const ListAuth = createCollectionAuthDecorator('list');
 
@@ -282,8 +288,7 @@ export function useMongoREST(
      * @param dbName name of the database.
      */
     collection(name: string) {
-      const use = options.use || Mongo;
-      const mongo = use instanceof Mongo ? use : beanOf(use);
+      const mongo = getMongo();
       return mongo.db(options?.dbName).collection(name);
     }
 
@@ -421,6 +426,11 @@ export function useMongoREST(
   class MongoModule extends Group {}
 
   return {
+    /**
+     * Returns the associated {@link Mongo} instance.
+     * @throws an {@link Error} if not found.
+     */
+    getMongo,
     /**
      * A {@link Mongo} REST {@link Controller}.
      */
