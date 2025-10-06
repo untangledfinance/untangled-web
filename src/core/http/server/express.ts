@@ -327,24 +327,26 @@ export abstract class Application extends Group implements Server, OnStop {
       throw new Error('Already served!');
     }
     this.emit('start');
+    const keepRawBody = (
+      req: express.Request,
+      _: express.Response,
+      buffer: Buffer<ArrayBufferLike>
+    ) => {
+      (req as any).rawBody = buffer?.toString('utf8');
+    };
     const app = express()
       .options('*', Helper.corsHandler(this.corsOptions))
       .use(
         express.urlencoded({
           extended: true,
+          verify: keepRawBody,
         })
       )
-      .use(express.json())
-      .use((req: express.Request & { rawBody?: string }) => {
-        req.rawBody = '';
-        req.setEncoding('utf8');
-        req.on('data', function (chunk) {
-          req.rawBody += chunk;
-        });
-        req.on('end', function () {
-          req.next();
-        });
-      })
+      .use(
+        express.json({
+          verify: keepRawBody,
+        })
+      )
       .use(
         (
           req: express.Request,
