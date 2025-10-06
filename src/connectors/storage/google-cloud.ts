@@ -10,6 +10,7 @@ export class GoogleCloudStorageConnector extends StorageConnector {
   constructor(projectId: string) {
     super();
     this.client = new Storage({
+      // TODO: specify credentials
       projectId,
     });
   }

@@ -128,6 +128,11 @@ function envConfigs(): Partial<Configurations> {
     gcp: {
       projectId: env('GCP_PROJECT_ID'),
     },
+    aws: {
+      region: env('AWS_REGION'),
+      accessKeyId: env('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: env('AWS_SECRET_ACCESS_KEY'),
+    },
     env: /* reconstruct json values */ Object.entries(environ).reduce(
       (env, [key, val]) => {
         try {

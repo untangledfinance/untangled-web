@@ -91,7 +91,7 @@ export type Configurations<E extends Env = Env> = {
     };
   };
   storage: {
-    provider?: string;
+    provider?: 'gcp' | 'aws';
     bucketName?: string;
   };
   slack: {
@@ -100,6 +100,11 @@ export type Configurations<E extends Env = Env> = {
   };
   gcp: {
     projectId?: string;
+  };
+  aws: {
+    region?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
   };
   rpc: {
     [chainId: `${number}` | number]:

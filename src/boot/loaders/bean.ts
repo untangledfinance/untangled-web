@@ -1,7 +1,10 @@
 import fs from 'fs';
 import { Mongo } from '../../connectors/mongo';
 import { EntityType, Postgres } from '../../connectors/postgres';
-import { GoogleCloudStorageConnector } from '../../connectors/storage';
+import {
+  GoogleCloudStorageConnector,
+  S3Connector,
+} from '../../connectors/storage';
 import { asBean, isBean, shutdown } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
 import { StorageConnector } from '../../core/storage';
@@ -68,6 +71,13 @@ async function initializeStorageConnector(configs: Configurations) {
       return new (asStorageConnectorBean(GoogleCloudStorageConnector))(
         configs.gcp.projectId
       );
+    }
+    case 's3': {
+      return new (asStorageConnectorBean(S3Connector))({
+        region: configs.aws.region,
+        accessKeyId: configs.aws.accessKeyId,
+        secretAccessKey: configs.aws.secretAccessKey,
+      });
     }
   }
 }
