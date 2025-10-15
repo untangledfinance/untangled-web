@@ -41,6 +41,8 @@ class Helper {
       params: req.params,
       body: req.body,
       rawBody: (req as any).rawBody as string,
+      bodyParser: (req as any).bodyParser as string,
+      encoding: (req as any).encoding as string,
     });
   }
 
@@ -327,24 +329,54 @@ export abstract class Application extends Group implements Server, OnStop {
       throw new Error('Already served!');
     }
     this.emit('start');
-    const keepRawBody = (
-      req: express.Request,
-      _: express.Response,
-      buffer: Buffer<ArrayBufferLike>
-    ) => {
-      (req as any).rawBody = buffer?.toString('utf8');
-    };
+    const keepRawBody =
+      (parserType: string) =>
+      (
+        req: express.Request,
+        _: express.Response,
+        buffer: Buffer<ArrayBufferLike>,
+        encoding: BufferEncoding
+      ) => {
+        const r = req as {
+          bodyParser?: string;
+          rawBody?: string;
+          encoding?: string;
+        };
+        if (r.rawBody === undefined) {
+          encoding = [null, undefined, ''].includes(encoding)
+            ? 'utf8'
+            : encoding;
+          const rawBody = buffer?.toString(encoding);
+          r.bodyParser = parserType;
+          r.rawBody = rawBody;
+          r.encoding = encoding;
+        }
+      };
     const app = express()
       .options('*', Helper.corsHandler(this.corsOptions))
       .use(
-        express.urlencoded({
-          extended: true,
-          verify: keepRawBody,
+        express.json({
+          type: 'application/json',
+          verify: keepRawBody('json'),
         })
       )
       .use(
-        express.json({
-          verify: keepRawBody,
+        express.urlencoded({
+          type: 'application/x-www-form-urlencoded',
+          extended: true,
+          verify: keepRawBody('urlencoded'),
+        })
+      )
+      .use(
+        express.text({
+          type: 'text/*',
+          verify: keepRawBody('text'),
+        })
+      )
+      .use(
+        express.raw({
+          type: (_) => true,
+          verify: keepRawBody('raw'),
         })
       )
       .use(

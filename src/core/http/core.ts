@@ -27,6 +27,8 @@ export type Req<T = any> = {
   params?: Record<string, string>;
   body?: T;
   rawBody?: string;
+  bodyParser?: string;
+  encoding?: string;
 };
 
 export class ReqObj<T = any> extends Obj {
@@ -39,6 +41,8 @@ export class ReqObj<T = any> extends Obj {
   params?: Record<string, string>;
   body?: T;
   rawBody?: string;
+  bodyParser?: string;
+  encoding?: string;
 }
 
 export type Res<T = any> = {
