@@ -5,8 +5,13 @@ export const User = new mongoose.Schema({
   username: String,
   email: String,
   phoneNumber: String,
+  password: String,
   dateOfBirth: Date,
   active: Boolean,
 });
 
-export default Model('User', User, 'users');
+export default Model('User', User, 'users', {
+  audit: {
+    excludeFields: ['password'],
+  },
+});

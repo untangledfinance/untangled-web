@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { TModel } from './types';
+import {
+  attachAuditMiddleware,
+  AuditOptions,
+  DEFAULT_AUDIT_COLLECTION_NAME_SUFFIX,
+} from './audit';
 
 export type PollingOptions = {
   /**
@@ -172,17 +177,36 @@ export function Model<TSchema extends mongoose.Schema = any>(
   name: string,
   schema: TSchema,
   collection?: string,
-  options?: {
+  options: {
     /**
      * {@link Mongo} instance/bean to use.
      */
-    use: MongoBean;
-  }
+    use?: MongoBean;
+    /**
+     * Audit trail configuration.
+     */
+    audit?: boolean | AuditOptions;
+  } = {}
 ) {
   if (!schema) {
     throw new Error(`Schema must be specified`);
   }
-  const use = options?.use ?? Mongo;
+
+  // Attach audit middleware if audit options are provided
+  if (options.audit) {
+    const auditCollection =
+      (typeof options.audit === 'object'
+        ? options.audit.auditCollection
+        : undefined) ||
+      `${collection || name.toLowerCase() + 's'}${DEFAULT_AUDIT_COLLECTION_NAME_SUFFIX}`;
+    const auditOptions = {
+      ...(typeof options.audit === 'object' ? options.audit : {}),
+      auditCollection,
+    };
+    attachAuditMiddleware(schema, auditOptions);
+  }
+
+  const use = options.use ?? Mongo;
   const model = () => {
     const mongo = use instanceof Mongo ? use : beanOf(use);
     return mongo.model(name, schema, collection) as TModel<TSchema>;
@@ -195,7 +219,7 @@ export function Model<TSchema extends mongoose.Schema = any>(
       get: (_, key) => {
         if (key === 'use') {
           return (mongo: MongoBean = use) =>
-            Model(name, schema, collection, { use: mongo });
+            Model(name, schema, collection, { ...options, use: mongo });
         }
         return model()[key];
       },
