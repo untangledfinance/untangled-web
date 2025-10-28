@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
+import { noBigInt } from '../../core/types';
 import { TModel } from './types';
 import {
   attachAuditMiddleware,
@@ -72,6 +73,21 @@ export class Mongo implements OnInit, OnStop {
 
   constructor(options: Partial<MongoOptions>) {
     this.instance = new mongoose.Mongoose();
+    const createModel = this.instance.model;
+    this.instance.model = function (
+      name: string,
+      schema: mongoose.Schema,
+      collection: string,
+      options: any
+    ) {
+      const model = createModel.bind(this)(name, schema, collection, options);
+      const createDoc = model.create;
+      // converts all BigInt values to strings
+      model.create = function (...args: any[]) {
+        return createDoc.bind(this)(...args.map(noBigInt));
+      };
+      return model;
+    };
     this.options = options;
   }
 
