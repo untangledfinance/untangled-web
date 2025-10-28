@@ -1,4 +1,4 @@
-import { config, event, ioc, logging, pubsub } from './core';
+import { config, event, ioc, logging, pubsub, types } from './core';
 import { Configurations } from './types';
 
 ///
@@ -96,5 +96,5 @@ globalThis.on = async <T>(
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 BigInt.prototype['toJSON'] = function () {
-  return this.toString();
+  return types.noBigInt(this);
 };

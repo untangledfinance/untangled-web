@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
+import { noBigInt } from '../../core/types';
 import { TModel } from './types';
 import {
   attachAuditMiddleware,
@@ -62,6 +63,41 @@ export function poll(instance: Mongo, options: PollingOptions = {}) {
 }
 
 /**
+ * Allows to convert all BigInt values to strings
+ * before saving into the MongoDB.
+ */
+export function safeBigInt(instance: Mongo) {
+  instance['instance']?.plugin((schema) => {
+    schema.pre('save', function (next) {
+      Object.keys(this.toObject()).forEach((key) => {
+        if (key !== '_id' && key !== '__v')
+          this.set(key, noBigInt(this.get(key)));
+      });
+      next();
+    });
+
+    schema.pre('insertMany', function (next, docs) {
+      docs.forEach((doc: any, i: number) => (docs[i] = noBigInt(doc)));
+      next();
+    });
+
+    const updateMethods = [
+      'updateOne',
+      'updateMany',
+      'findOneAndUpdate',
+      'findByIdAndUpdate',
+    ] as const;
+    updateMethods.forEach((method) => {
+      // @ts-ignore
+      schema.pre(method, function (next) {
+        this.setUpdate(noBigInt(this.getUpdate()));
+        next();
+      });
+    });
+  });
+}
+
+/**
  * A MongoDB instance.
  */
 @Log
@@ -73,6 +109,7 @@ export class Mongo implements OnInit, OnStop {
   constructor(options: Partial<MongoOptions>) {
     this.instance = new mongoose.Mongoose();
     this.options = options;
+    safeBigInt(this);
   }
 
   /**
