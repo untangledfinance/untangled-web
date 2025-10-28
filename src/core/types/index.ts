@@ -632,3 +632,19 @@ export const safe = (() => {
     }) as T;
   };
 })();
+
+/**
+ * Recursively replaces all {@link BigInt} fields by their
+ * {@link String} values.
+ * @param obj the original object.
+ */
+export function noBigInt(obj: any): any {
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(noBigInt);
+  if (obj?.constructor === Object) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [k, noBigInt(v)])
+    );
+  }
+  return obj;
+}

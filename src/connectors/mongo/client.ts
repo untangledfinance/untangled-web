@@ -1,12 +1,25 @@
 import mongoose from 'mongoose';
 import { beanOf, OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
+import { noBigInt } from '../../core/types';
 import { TModel } from './types';
 import {
   attachAuditMiddleware,
   AuditOptions,
   DEFAULT_AUDIT_COLLECTION_NAME_SUFFIX,
 } from './audit';
+
+// Stores BigInt as String globally.
+mongoose.plugin(function (schema) {
+  schema.pre('save', function (next) {
+    for (const key in this.toObject()) {
+      if (key !== '_id' && key !== '__v') {
+        this[key] = noBigInt(this[key]);
+      }
+    }
+    next();
+  });
+});
 
 export type PollingOptions = {
   /**
