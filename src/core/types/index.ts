@@ -14,9 +14,7 @@ export class Obj {
     if (typeof obj !== 'object') {
       throw new Error(`Obj must be 'object'`);
     }
-    Object.entries(obj).forEach(([key, value]) => {
-      this[key] = value; // FIXME: Must avoid prototype pollution
-    });
+    Object.assign(this, obj);
   }
 }
 
