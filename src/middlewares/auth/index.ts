@@ -83,6 +83,9 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
             roles,
             perms: roles.flatMap((role) => validator.permsOf(role)),
           },
+          enumerable: true,
+          writable: false,
+          configurable: false,
         });
         return { req, res };
       }
