@@ -71,11 +71,11 @@ export class RbacValidator {
   /**
    * Checks if a resource can be accessed by a specific {@link Role}
    * with a given {@link Action}.
-   * @param perm concatenation of the resource name and the {@link Action}.
+   * @param perm the permission string.
    * @param role the {@link Role}.
    * @returns `true` if it can be; otherwise, `false`.
    */
-  check(perm: string, role: Role) {
+  check(perm: string, role: Role): boolean {
     if (!this.enabled) {
       throw new Error('Validator disabled');
     }
@@ -88,5 +88,21 @@ export class RbacValidator {
       return true;
     }
     return !!this.acm[role]?.[resource]?.[action];
+  }
+
+  /**
+   * Returns all permission strings of a specific {@link Role}.
+   * @param role the {@link Role}.
+   */
+  permsOf(role: Role): string[] {
+    return Object.entries(this.acm[role] ?? {}).reduceRight(
+      (perms, [resource, actionMap]) => [
+        ...perms,
+        ...Object.entries(actionMap ?? {})
+          .filter(([_, permitted]) => permitted)
+          .map(([action]) => permOf(resource, action)),
+      ],
+      [] as string[]
+    );
   }
 }

@@ -77,7 +77,12 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
       }
       if (accessible) {
         Object.defineProperty(req, '_auth', {
-          value: { id, email, roles, perms },
+          value: {
+            id,
+            email,
+            roles,
+            perms: roles.flatMap((role) => validator.permsOf(role)),
+          },
         });
         return { req, res };
       }
