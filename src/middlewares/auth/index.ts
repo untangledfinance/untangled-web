@@ -17,6 +17,7 @@ export const ANONYMOUS = {
   id: 0,
   email: 'anonymous',
   roles: ['anonymous'],
+  perms: [],
 };
 
 /**
@@ -30,6 +31,7 @@ export type AuthReq<T = any> = Req<T> & {
     id: number;
     email: string;
     roles: Role[];
+    perms: string[];
   };
 };
 
@@ -41,6 +43,7 @@ export type ReqVerifier<T = any> = (req: AuthReq<T>) =>
       id: number;
       email: string;
       roles: Role[];
+      perms: string[];
     }
   | undefined;
 
@@ -74,7 +77,7 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
       }
       if (accessible) {
         Object.defineProperty(req, '_auth', {
-          value: { id, email, roles },
+          value: { id, email, roles, perms },
         });
         return { req, res };
       }

@@ -9,6 +9,8 @@ import {
   DEFAULT_AUDIT_COLLECTION_NAME_SUFFIX,
 } from './audit';
 
+export const SYSTEM_DATABASES = ['admin', 'local', 'config'];
+
 export type PollingOptions = {
   /**
    * Polling interval in milliseconds.
@@ -135,6 +137,9 @@ export class Mongo implements OnInit, OnStop {
       database = 'test',
       tls,
     } = this.options;
+    if (SYSTEM_DATABASES.includes(database)) {
+      this.logger.warn(`Connecting to a system database: ${database}.`);
+    }
     const uri = `mongodb://${host}:${port}`;
     await this.instance.connect(uri, {
       user: username,

@@ -22,6 +22,23 @@ type Acm = {
 };
 
 /**
+ * Creates a permission string for a given action to a specific resource.
+ * @param resource the resource.
+ * @param action the action.
+ */
+export function permOf(resource = ALL, action = ALL) {
+  return [
+    resource.replaceAll(PERM_SEP, ''),
+    action.replaceAll(PERM_SEP, ''),
+  ].join(PERM_SEP);
+}
+
+/**
+ * Permission string for {@link ALL} accesses.
+ */
+export const PERM_ALL = permOf(ALL, ALL);
+
+/**
  * An access-Control validator.
  */
 export class RbacValidator {
