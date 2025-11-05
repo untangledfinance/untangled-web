@@ -17,3 +17,8 @@ export type TModel<TSchema extends mongoose.Schema = any> = mongoose.Model<
   TSchema
 > &
   mongoose.ObtainSchemaGeneric<TSchema, 'TStaticMethods'>;
+
+/**
+ * @see mongoose.Types.ObjectId
+ */
+export class ObjectId extends mongoose.Types.ObjectId {}

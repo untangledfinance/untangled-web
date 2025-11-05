@@ -1,17 +1,20 @@
-import mongoose from 'mongoose';
 import qs from 'qs';
 import {
   BadRequestError,
   Controller,
   Get,
   Group,
+  HttpContext,
   Module,
+  UnauthorizedError,
 } from '../../core/http';
 import { beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
+import { PERM_ALL, permOf } from '../../core/rbac';
 import { Action, flatten, isDecimal, num } from '../../core/types';
-import { Auth, AuthReq } from '../../middlewares/auth';
-import { Mongo, MongoBean } from './client';
+import { Auth, type AuthReq } from '../../middlewares/auth';
+import { Mongo, MongoBean, SYSTEM_DATABASES } from './client';
+import { ObjectId } from './types';
 
 class QueryParser {
   /**
@@ -38,7 +41,7 @@ class QueryParser {
       return value.slice(4);
     }
     if (typeof value === 'string' && value.startsWith('id:')) {
-      return new mongoose.Types.ObjectId(value.slice(3));
+      return new ObjectId(value.slice(3));
     }
     if ([true, false, 'true', 'false'].includes(value))
       return value === true || value === 'true';
@@ -227,9 +230,9 @@ export type MongoHttpOptions = Partial<{
    */
   use: MongoBean;
   /**
-   * Name of the database to use.
+   * Name of the database(s) to use.
    */
-  dbName: string;
+  dbName: string | string[];
   /**
    * Authorization options.
    */
@@ -270,7 +273,7 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
     return auth((req) => {
       const collection = req.params.collection as string;
       if (noAuthCollections.includes(collection)) return;
-      return `${collection}:${action}`;
+      return permOf(collection, action);
     });
   };
 
@@ -285,11 +288,39 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
     /**
      * Retrieves the instance of the given collection.
      * @param name name of the collection.
-     * @param dbName name of the database.
+     * @param db name of the database.
      */
-    collection(name: string) {
+    collection(name: string, db?: string) {
+      const dbNames = [options.dbName].flat();
+
+      if (db) {
+        try {
+          if (SYSTEM_DATABASES.includes(db)) {
+            throw new Error(
+              `System database not supported by MongoREST: ${db}`
+            );
+          }
+
+          if (dbNames.length && !dbNames.includes(db)) {
+            throw new Error(`Database not supported: ${db}`);
+          }
+
+          const { req } = HttpContext.getOrThrow();
+          const perms = (req as AuthReq)?._auth?.perms ?? [];
+          if (
+            !perms.includes(PERM_ALL) &&
+            !perms.includes(permOf('db')) &&
+            !perms.includes(permOf('db', db))
+          ) {
+            throw new Error(`Access denied to database: ${db}`);
+          }
+        } catch (err) {
+          this.logger.error(err.message);
+          throw new UnauthorizedError();
+        }
+      }
       const mongo = getMongo();
-      return mongo.db(options?.dbName).collection(name);
+      return mongo.db(db || dbNames.at(0)).collection(name);
     }
 
     /**
@@ -314,7 +345,7 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
           if (val instanceof Date) {
             return val.toISOString();
           }
-          if (val instanceof mongoose.Types.ObjectId) {
+          if (val instanceof ObjectId) {
             return val.toHexString();
           }
           return val;
@@ -343,38 +374,15 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
     }
 
     /**
-     * Retrieves a document of the given collection by the given `_id`.
+     * Extracts from a text all fields to select in the query.
+     * @param select the text.
      */
-    @Get('/:collection/:id')
-    @ViewAuth
-    async findById(req: AuthReq): Promise<MongoViewHttpResponse> {
-      const collection = req.params.collection as string;
-      const id = req.params.id as string;
-      return {
-        data: await this.collection(collection).findOne({
-          _id: new mongoose.Types.ObjectId(id),
-        }),
-      };
-    }
-
-    /**
-     * Finds all documents that match the given filter.
-     */
-    @Get('/:collection')
-    @ListAuth
-    async find(req: AuthReq) {
-      const collection = req.params.collection as string;
-      const { size, page, select = '*', format, ...query } = req.query || {};
-      const pageSize = num(size) || 20;
-      const pageNumber = num(page) || 0;
-      const offset = Math.max(pageSize, 0) * Math.max(pageNumber, 0);
-      const { filter, order } = QueryParser.parse(
-        qs.parse(query as Record<string, string>)
-      );
+    toFields(select = '*') {
       const fields = (select as string)
         .split(',')
         .map((field) => field.trim())
         .filter((field) => field !== '');
+
       const projection =
         !fields.length || fields.includes('*')
           ? undefined // select all
@@ -387,16 +395,83 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
                 [field: string]: boolean;
               }
             );
+
       if (projection) {
         projection['_id'] = !!projection['_id'];
       }
+
+      return {
+        /**
+         * Projection to use.
+         */
+        projection,
+        /**
+         * Selected fields.
+         */
+        fields,
+      };
+    }
+
+    /**
+     * Retrieves a document of the given collection by the given `_id`.
+     */
+    @Get('/:collection/:id')
+    @ViewAuth
+    async findById(req: AuthReq) {
+      const collection = req.params.collection as string;
+      const id = req.params.id as string;
+      const { select = '*', format, db = options.dbName } = req.query || {};
+      const { fields, projection } = this.toFields(select as string);
       this.logger.debug(
-        `Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
+        `[${db}] Select ${fields} From "${collection}" Where Id='${id}'`
+      );
+
+      const data = await this.collection(collection, db as string).findOne(
+        {
+          _id: new ObjectId(id),
+        },
+        { projection }
+      );
+
+      if (format === 'csv' && fields.length) {
+        const fileName = `${collection}_${id}_${Date.now()}.csv`;
+        return this.csv(fileName, [data], ...fields);
+      }
+
+      return {
+        data,
+      } as MongoViewHttpResponse;
+    }
+
+    /**
+     * Finds all documents that match the given filter.
+     */
+    @Get('/:collection')
+    @ListAuth
+    async find(req: AuthReq) {
+      const collection = req.params.collection as string;
+      const {
+        size,
+        page,
+        select = '*',
+        format,
+        db = options.dbName,
+        ...query
+      } = req.query || {};
+      const pageSize = num(size) || 20;
+      const pageNumber = num(page) || 0;
+      const offset = Math.max(pageSize, 0) * Math.max(pageNumber, 0);
+      const { filter, order } = QueryParser.parse(
+        qs.parse(query as Record<string, string>)
+      );
+      const { fields, projection } = this.toFields(select as string);
+      this.logger.debug(
+        `[${db}] Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
 
       const [total, data] = await Promise.all([
-        this.collection(collection).countDocuments(filter),
-        this.collection(collection)
+        this.collection(collection, db as string).countDocuments(filter),
+        this.collection(collection, db as string)
           .find(filter, { projection })
           .sort(order)
           .skip(offset)

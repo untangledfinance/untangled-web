@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { beanOf } from '../../core/ioc';
 import { createLogger } from '../../core/logging';
 import { Mongo, MongoBean } from './client';
+import { ObjectId } from './types';
 
 const logger = createLogger('mongo:audit');
 
@@ -24,7 +25,7 @@ export interface AuditEntry {
   /**
    * Reference to the original document ID.
    */
-  documentId: mongoose.Types.ObjectId | string;
+  documentId: ObjectId | string;
   /**
    * Type of operation performed.
    */
@@ -470,7 +471,7 @@ async function handleDelete(
  * Query audit history for a document.
  */
 export async function getAuditHistory(
-  documentId: string | mongoose.Types.ObjectId,
+  documentId: string | ObjectId,
   collectionName: string,
   options?: {
     /**
@@ -541,7 +542,7 @@ export async function getAuditHistory(
  * Restore a document to a previous state from audit history.
  */
 export async function restoreFromAudit(
-  documentId: string | mongoose.Types.ObjectId,
+  documentId: string | ObjectId,
   model: mongoose.Model<any>,
   auditTimestamp: Date,
   options?: {
