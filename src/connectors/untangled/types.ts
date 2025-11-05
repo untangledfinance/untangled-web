@@ -11,6 +11,10 @@ export interface UntangledApiType<T = any> {
 
 export type UntangledQueryOptions<T = any> = {
   /**
+   * Database to query data on.
+   */
+  db?: string;
+  /**
    * Fields to include in the query data (default: all fields).
    */
   select?: QueryField<T> | QueryField<T>[];

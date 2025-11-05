@@ -1,6 +1,7 @@
 import { Jwt } from '../../core/jwt';
 import {
   Filter,
+  HttpContext,
   Req,
   RequestDecorator,
   Res,
@@ -83,6 +84,9 @@ export function authFilter<T = any>(verifier: ReqVerifier<T>): Filter<T> {
             roles,
             perms: roles.flatMap((role) => validator.permsOf(role)),
           },
+          enumerable: true,
+          writable: false,
+          configurable: false,
         });
         return { req, res };
       }
@@ -136,7 +140,9 @@ export function Auth(...permissions: Permission[]) {
     const handler = descriptor.value;
     descriptor.value = async function <T>(req: AuthReq<T>, res: Res) {
       const authorized = await jwt<T>(req, res, ...permissions);
-      return handler.bind(this)(authorized.req, authorized.res);
+      return HttpContext.run(authorized, () =>
+        handler.bind(this)(authorized.req, authorized.res)
+      );
     };
   };
 }
@@ -153,7 +159,9 @@ Auth.AllowAnonymous = function (...permissions: Permission[]) {
     const handler = descriptor.value;
     descriptor.value = async function <T>(req: AuthReq<T>, res: Res) {
       const authorized = await jwt.allowAnonymous<T>(req, res, ...permissions);
-      return handler.bind(this)(authorized.req, authorized.res);
+      return HttpContext.run(authorized, () =>
+        handler.bind(this)(authorized.req, authorized.res)
+      );
     };
   };
 };

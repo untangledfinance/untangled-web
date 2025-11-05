@@ -69,7 +69,9 @@ export class Untangled extends HttpClient {
     );
     const page = Math.max(options?.page || 0, 0);
     const size = Math.max(options?.size || 20, 20);
+    const db = options?.db;
     const search = [
+      db && `db=${db}`,
       `select=${select.join(',')}`,
       ...Object.entries(where).map(([k, v]) => `${k}=${v}`),
       order.desc.length && `order[desc]=${order.desc.join(',')}`,
