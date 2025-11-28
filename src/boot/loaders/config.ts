@@ -74,6 +74,7 @@ function envConfigs(): Partial<Configurations> {
         port: parseInt(env('DATABASE_PORT')),
         username: env('DATABASE_USERNAME'),
         password: env('DATABASE_PASSWORD'),
+        authDatabase: env('DATABASE_AUTH_NAME'),
         tls: env('DATABASE_TLS') === 'true',
       },
       postgres: {

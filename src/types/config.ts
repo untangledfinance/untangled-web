@@ -47,6 +47,7 @@ export type Configurations<E extends Env = Env> = {
       port?: number;
       username?: string;
       password?: string;
+      authDatabase?: string;
       tls?: boolean;
     };
     postgres: {

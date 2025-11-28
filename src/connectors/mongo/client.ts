@@ -35,6 +35,7 @@ export type MongoOptions = {
   username: string;
   password: string;
   database: string;
+  authDatabase?: string;
   tls: boolean;
 };
 
@@ -135,6 +136,7 @@ export class Mongo implements OnInit, OnStop {
       username,
       password,
       database = 'test',
+      authDatabase,
       tls,
     } = this.options;
     if (SYSTEM_DATABASES.includes(database)) {
@@ -145,6 +147,7 @@ export class Mongo implements OnInit, OnStop {
       user: username,
       pass: password,
       dbName: database,
+      authSource: authDatabase,
       tls: tls === true,
       rejectUnauthorized: true,
     });

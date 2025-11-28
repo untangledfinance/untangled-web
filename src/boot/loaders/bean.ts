@@ -32,6 +32,7 @@ async function initializeMongoDatabase(configs: Configurations) {
     port: configs.db.mongo.port,
     username: configs.db.mongo.username,
     password: configs.db.mongo.password,
+    authDatabase: configs.db.mongo.authDatabase,
     tls: configs.db.mongo.tls,
   });
   return mongo;
