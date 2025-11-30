@@ -1,6 +1,6 @@
 import { DataSource, EntityManager, ObjectLiteral, Repository } from 'typeorm';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
-import { beanOf, OnInit, OnStop } from '../../core/ioc';
+import { OnInit, OnStop, beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { EntityManagerContext } from './context';
 import { Migrations } from './utils';

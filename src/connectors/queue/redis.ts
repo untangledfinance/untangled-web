@@ -1,7 +1,7 @@
 import * as redis from 'redis';
-import { Queue, QueueOptions, ReliableQueue } from '../../core/queue';
 import { OnInit, OnStop } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
+import { Queue, QueueOptions, ReliableQueue } from '../../core/queue';
 
 /**
  * Redis client configurations.

@@ -320,7 +320,19 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
         }
       }
       const mongo = getMongo();
-      return mongo.db(db || dbNames.at(0)).collection(name);
+      const dbName = db || dbNames.at(0);
+      this.logger.debug(
+        `collection() - name: ${name}, db param: ${db}, dbNames: ${JSON.stringify(dbNames)}, resolved dbName: ${dbName}`
+      );
+      const database = mongo.db(dbName);
+      this.logger.debug(
+        `collection() - database: ${database?.databaseName}, connected: ${mongo.connected}`
+      );
+      const col = database.collection(name);
+      this.logger.debug(
+        `collection() - collection namespace: ${col?.namespace}`
+      );
+      return col;
     }
 
     /**
@@ -461,17 +473,28 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
       const pageSize = num(size) || 20;
       const pageNumber = num(page) || 0;
       const offset = Math.max(pageSize, 0) * Math.max(pageNumber, 0);
+
+      this.logger.debug(`find() - req.query:`, req.query);
+      this.logger.debug(`find() - query (rest after destructuring):`, query);
+
       const { filter, order } = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
+
+      this.logger.debug(`find() - parsed filter:`, filter);
+      this.logger.debug(`find() - parsed order:`, order);
+
       const { fields, projection } = this.toFields(select as string);
       this.logger.debug(
         `[${db}] Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
 
+      const col = this.collection(collection, db as string);
+      this.logger.debug(`find() - collection namespace: ${col?.namespace}`);
+
       const [total, data] = await Promise.all([
-        this.collection(collection, db as string).countDocuments(filter),
-        this.collection(collection, db as string)
+        col.countDocuments(filter),
+        col
           .find(filter, { projection })
           .sort(order)
           .skip(offset)

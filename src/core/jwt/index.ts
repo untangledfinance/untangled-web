@@ -1,4 +1,4 @@
-import { sign, Algorithm, verify, decode } from 'jsonwebtoken';
+import { Algorithm, decode, sign, verify } from 'jsonwebtoken';
 
 /**
  * JSON Web Token utilities.

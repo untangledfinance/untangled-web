@@ -1,7 +1,7 @@
 import * as redis from 'redis';
-import { MessageHandler, Publisher, Subscriber } from '../../core/pubsub';
-import { Log, Logger } from '../../core/logging';
 import { OnInit, OnStop } from '../../core/ioc';
+import { Log, Logger } from '../../core/logging';
+import { MessageHandler, Publisher, Subscriber } from '../../core/pubsub';
 
 /**
  * Redis client configurations.

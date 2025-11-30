@@ -1,10 +1,10 @@
 import asyncHooks from 'async_hooks';
 import { createLogger } from '../logging';
 import {
+  Symbolization,
   classOf,
   hasSymbol,
   isClass,
-  Symbolization,
   withClass,
   withName,
   withSymbol,

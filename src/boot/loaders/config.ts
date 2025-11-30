@@ -2,8 +2,8 @@ import os from 'os';
 import { ConfigStore, loadEnvFromJson } from '../../core/config';
 import { HttpMethod } from '../../core/http';
 import { Configurations, Env } from '../../types';
-import { UseBootLoader } from './types';
 import { useConfigs } from './hooks';
+import { UseBootLoader } from './types';
 
 /**
  * {@link Env} from `process.env`.

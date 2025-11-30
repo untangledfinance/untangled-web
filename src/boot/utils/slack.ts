@@ -1,7 +1,7 @@
 import { KnownBlock } from '@slack/web-api';
+import { SlackConnector } from '../../connectors/notify';
 import { beanOf } from '../../core/ioc';
 import { NotifyConnector } from '../../core/notify';
-import { SlackConnector } from '../../connectors/notify';
 import { useAppInfo } from './app';
 
 /**

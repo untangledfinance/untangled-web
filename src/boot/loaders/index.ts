@@ -1,5 +1,5 @@
-import config from './config';
 import bean from './bean';
+import config from './config';
 
 export { BootLoader } from './types';
 export * from './hooks';

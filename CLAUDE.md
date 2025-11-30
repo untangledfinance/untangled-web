@@ -6,11 +6,12 @@
 
 ### Key Information
 
-- **Language**: TypeScript 5.7.3
-- **Runtime**: Bun (primary), Node.js compatible
-- **Main Framework**: Express.js (HTTP server)
+- **Language**: TypeScript 5.9+
+- **Runtime**: Bun (native, required)
+- **Main Framework**: Bun.serve (HTTP server)
 - **Architecture**: IoC container with decorator-based configuration
 - **Module System**: CommonJS (compiled output)
+- **Package Manager**: Bun
 
 ## Architecture Principles
 
@@ -73,7 +74,27 @@ The framework heavily uses TypeScript decorators for declarative configuration:
 
 ### HTTP Server (`src/core/http/`)
 
-**Express-based server** with routing, middleware, and filters:
+**Bun-based server** with routing, middleware, and filters.
+
+**Server Implementation**: `src/core/http/server/bun.ts`
+
+**Key Classes**:
+
+- `Helper` - Utility class for request/response processing, CORS, path matching
+- `Group` - Abstract base for route grouping and middleware management
+- `Application` - Main HTTP server class extending Group
+
+**Key Features**:
+
+- Lazy body parsing (body parsed only when `getBody()` is called or handler accesses it)
+- Streaming request support via `StreamReq` for proxy/large uploads
+- Full request parsing (JSON, urlencoded, text, raw, multipart/form-data)
+- File upload support with `UploadedFile` type
+- Streaming proxy support with `proxyTo()` directive
+- Native `Response` object passthrough
+- Built-in CORS handling
+- Path parameter extraction (e.g., `/users/:id` → `req.params.id`)
+- Event emission (`request`, `response`, `started`, `stopped`, `crashed`)
 
 ```typescript
 @Module({
@@ -82,10 +103,16 @@ The framework heavily uses TypeScript decorators for declarative configuration:
 })
 export class App extends Application {
   async main() {
-    await this.start({
-      host: Configs.app.host,
-      port: Configs.app.port,
-    });
+    this.cors('*')
+      .on('started', (data) => console.log('Started', data))
+      .on('response', (req, res) =>
+        console.log(req.method, req.path, res.status)
+      )
+      .use('/api', ApiModule)
+      .start({
+        host: Configs.app.host,
+        port: Configs.app.port,
+      });
   }
 }
 ```
@@ -97,6 +124,106 @@ export class App extends Application {
 - **Context**: `HttpContext` stores current request context
 - **Error Handling**: `HttpError` subclasses (NotFoundError, UnauthorizedError, etc.)
 - **CORS**: Built-in CORS support with `cors()` method
+
+**Request Types** (in `src/core/http/core.ts`):
+
+```typescript
+// Standard request - body is auto-parsed before handler runs (unless streaming)
+type Req<T> = {
+  method: string;
+  path?: string;
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
+  queryString?: string;
+  params?: Record<string, string>;
+  body?: T; // Populated after getBody() is called
+  rawBody?: string;
+  files?: UploadedFile[];
+  getBody?: () => Promise<T>; // Explicit lazy parsing
+  getRawBody?: () => Promise<string | undefined>;
+  getFiles?: () => Promise<UploadedFile[] | undefined>;
+  rawRequest?: Request; // Original request for streaming proxy
+};
+
+// Streaming request - use `await req.body` for Promise-based parsing
+type StreamReq<T> = {
+  method: string;
+  path?: string;
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
+  queryString?: string;
+  params?: Record<string, string>;
+  body: Promise<T | undefined>; // Promise-based
+  rawBody: Promise<string | undefined>; // Promise-based
+  files: Promise<UploadedFile[] | undefined>; // Promise-based
+  rawRequest?: Request;
+};
+
+// Represents an uploaded file
+interface UploadedFile {
+  name: string; // Form field name
+  filename: string; // Original filename
+  type: string; // MIME type
+  size: number; // File size in bytes
+  data: Blob; // File content as Blob
+}
+
+// Request with file uploads
+type FileReq<T> = Req<T> & { files: UploadedFile[] };
+```
+
+**Body Parsing Modes**:
+
+```typescript
+// 1. Default: Auto-parsed for non-streaming routes
+@Post('/users')
+async createUser(req: Req<CreateUserDto>) {
+  const { name, email } = req.body;  // Already parsed
+  return { created: { name, email } };
+}
+
+// 2. Streaming: Use await req.body (for proxy/streaming handlers)
+@Post('/upload', { streaming: true })
+async handleUpload(req: StreamReq) {
+  const body = await req.body;   // Parsed on demand
+  const files = await req.files; // Parsed on demand
+  return { received: body };
+}
+
+// 3. Group-based streaming route
+this.post('/stream', async (req: StreamReq) => {
+  const body = await req.body;
+  return { data: body };
+}, { streaming: true });
+```
+
+**Streaming Proxy**:
+
+```typescript
+import { proxyTo } from 'untangled-web/core/http';
+
+// Return proxyTo() directive to stream request to target
+@Post('/proxy', { streaming: true })
+async proxyRequest(req: StreamReq) {
+  // Body is NOT parsed - streams directly to target
+  return proxyTo('https://api.example.com/endpoint');
+}
+```
+
+**Authenticated File Upload Type** (in `src/middlewares/auth/index.ts`):
+
+```typescript
+// Combines authentication and file upload
+type AuthFileReq<T> = FileReq<T> & {
+  _auth: { id: number; email: string; roles: string[]; perms: string[] };
+};
+```
+
+**Controller Return Rules**:
+
+- Return raw JS data (object/array/string) for automatic JSON serialization
+- Return native `Response` object for custom status/headers/body
+- Return `proxyTo()` directive for streaming proxy
 
 ### Boot System (`src/boot/`)
 
@@ -141,6 +268,7 @@ export class App extends Application {}
 - `jwt` - JWT authentication
 - `acl` - RBAC settings
 - `cors` - CORS configuration
+- `env` - Custom environment variables (auto-parsed as JSON if valid)
 
 ### Database Connectors
 
@@ -163,13 +291,27 @@ const User = Model(
 const users = await User.find({ active: true });
 ```
 
-**Audit Trail Support** (`src/connectors/mongo/audit.ts`):
-
-MongoDB models support automatic audit trails that track all changes (CREATE, UPDATE, DELETE) in separate audit collections:
+**REST API Support** (`src/connectors/mongo/http.ts`):
 
 ```typescript
-import { Model, AuditOperation } from 'untangled-web/connectors/mongo';
+import { useMongoREST } from 'untangled-web/connectors/mongo';
 
+const { MongoModule } = useMongoREST({
+  dbName: ['mydb'],
+  auth: { allowAnonymous: false },
+});
+
+// Mount at /_data for REST access to collections
+app.use('/_data', MongoModule);
+// GET /_data/users - List users
+// GET /_data/users/:id - Get user by ID
+```
+
+**Audit Trail Support** (`src/connectors/mongo/audit.ts`):
+
+MongoDB models support automatic audit trails that track all changes:
+
+```typescript
 const User = Model('User', UserSchema, 'users', {
   audit: {
     enabled: true,
@@ -189,24 +331,7 @@ const User = Model('User', UserSchema, 'users', {
     retentionDays: 365,
   },
 });
-
-// Changes are tracked automatically
-await user.save(); // Audit entry created
-user.name = 'New Name';
-await user.save(); // UPDATE audit entry with changes
-
-// Query audit history
-import {
-  getAuditHistory,
-  restoreFromAudit,
-} from 'untangled-web/connectors/mongo';
-const history = await getAuditHistory(userId, 'users', { limit: 100 });
-
-// Restore to previous state
-const restored = await restoreFromAudit(userId, User, new Date('2025-01-15'));
 ```
-
-~~See `AUDIT.md` for complete documentation.~~
 
 #### PostgreSQL (`src/connectors/postgres/`)
 
@@ -235,9 +360,6 @@ const value = await cache.get('key');
 
 **Message queue abstraction**:
 
-- `RedisQueue` - Basic Redis queue
-- `ReliableRedisQueue` - Reliable Redis queue with acknowledgment
-
 ```typescript
 const queue = $(Queue);
 await queue.enqueue('queueId', message);
@@ -263,13 +385,6 @@ await subscriber.subscribe(
 await publisher.publish({ data: 'hello' }, 'channel1');
 ```
 
-Or use global helpers:
-
-```typescript
-await emit({ data: 'hello' }, 'channel1');
-await on((message, channel) => {}, 'channel1');
-```
-
 ### Scheduling (`src/core/scheduling/`)
 
 **Cron-based job scheduling**:
@@ -284,13 +399,6 @@ export class MyJob extends Runner {
 }
 ```
 
-**Event Handlers**:
-
-- `onStarted(handler)` - Task started
-- `onCompleted(handler)` - Task completed successfully
-- `onFailed(handler)` - Task failed with error
-- `onRun(handler)` - Task finished (success or failure)
-
 ### Authentication & Authorization (`src/middlewares/auth/`)
 
 **JWT-based auth with RBAC**:
@@ -299,14 +407,14 @@ export class MyJob extends Runner {
 @Controller('/api')
 export class MyController {
   @Get('/protected')
-  @Auth('read:users') // Requires permission
+  @Auth('read:users')
   async protected(req: AuthReq) {
     const { id, email, roles } = req._auth;
     return { user: email };
   }
 
   @Get('/public')
-  @Auth.AllowAnonymous() // Optional auth
+  @Auth.AllowAnonymous()
   async public(req: AuthReq) {
     // Works with or without token
   }
@@ -324,7 +432,6 @@ export class MyController {
 const storage = $(StorageConnector);
 await storage.upload(bucketName, fileName, buffer);
 const url = await storage.getSignedUrl(bucketName, fileName);
-await storage.download(bucketName, fileName);
 ```
 
 ### Logging (`src/core/logging/`)
@@ -336,18 +443,16 @@ const logger = createLogger('module-name');
 logger.info('Message', { key: 'value' });
 logger.error('Error occurred', error);
 
-// Or in classes with @Log
+// Or in classes with @Log decorator
 @Log
 export class MyClass {
-  constructor(private readonly logger: Logger) {}
+  readonly logger: Logger;
 
   method() {
     this.logger.debug('Debug message');
   }
 }
 ```
-
-**Console overrides**: All `console.log/info/error/debug/warn` use logger
 
 ### JWT (`src/core/jwt/`)
 
@@ -359,30 +464,18 @@ const token = jwt.sign({ id: 1, email: 'user@test.com', roles: ['admin'] });
 const payload = jwt.verify(token);
 ```
 
-### Validation (`src/core/validation/`)
-
-**Step-based execution ordering**:
-
-```typescript
-class MyClass {
-  @Step(1) // Executes first
-  setup() {}
-
-  @Step(2) // Executes second
-  process() {}
-}
-```
-
 ## Project Structure
 
 ```
 src/
 ├── boot/              # Boot system and loaders
+│   ├── _dev/          # Development controllers (health, admin, etc.)
 │   ├── loaders/       # Config, bean, and hooks loaders
-│   └── decorators/    # Cache and proxy decorators
+│   ├── decorators/    # Cache and proxy decorators
+│   └── utils/         # Boot utilities (slack, http helpers)
 ├── connectors/        # External service connectors
 │   ├── caching/       # Redis cache
-│   ├── mongo/         # MongoDB
+│   ├── mongo/         # MongoDB (client, http REST, audit)
 │   ├── postgres/      # PostgreSQL (TypeORM)
 │   ├── pubsub/        # Redis pub-sub
 │   ├── queue/         # Redis queue
@@ -392,7 +485,10 @@ src/
 │   ├── graph/         # GraphQL clients
 │   └── untangled/     # Untangled API client
 ├── core/              # Core framework modules
-│   ├── http/          # HTTP server, routing, context
+│   ├── http/          # HTTP server, routing, context, proxy
+│   │   ├── server/    # Bun server implementation
+│   │   ├── client/    # HTTP client
+│   │   └── ...        # Core types, errors, context
 │   ├── ioc/           # IoC container
 │   ├── config/        # Configuration management
 │   ├── logging/       # Logging utilities
@@ -407,6 +503,7 @@ src/
 │   ├── encoding/      # Encoding utilities
 │   ├── context/       # Async context storage
 │   ├── tunneling/     # SSH tunneling
+│   ├── notify/        # Notification abstraction
 │   ├── types/         # Type utilities
 │   └── validation/    # Validation decorators
 ├── middlewares/       # HTTP middlewares
@@ -418,13 +515,97 @@ src/
 └── index.ts           # Main export
 ```
 
+## Development Workflow
+
+### Building
+
+```bash
+bun run build       # Compile TypeScript to dist/
+bun run clean       # Remove dist/ folder
+```
+
+### Formatting & Linting
+
+```bash
+bun run format      # Lint (remove unused imports) + format with Prettier
+bun run format:check # Check formatting without modifying
+bun run lint        # Run ESLint with auto-fix
+bun run lint:check  # Run ESLint without auto-fix
+```
+
+**Tooling**:
+
+- **ESLint** with `eslint-plugin-unused-imports` - Automatically removes unused imports
+- **Prettier** with `@trivago/prettier-plugin-sort-imports` - Formats code and organizes imports
+
+**Import Order** (configured in `.prettierrc`):
+
+1. Node built-ins (`node:*`)
+2. Third-party modules
+3. Local imports (`./`, `../`)
+
+### Publishing
+
+```bash
+bun run bump        # Bump version
+```
+
+### Running Examples
+
+```bash
+cd examples/web-app
+bun install
+bun run dev         # Start development server
+```
+
+## Environment Variables
+
+The framework uses extensive environment variable configuration. Key variables:
+
+**Application**:
+
+- `APP_NAME`, `APP_VERSION`, `APP_DESCRIPTION`
+- `HOST`, `PORT` - Server binding
+- `URL` - Application URL
+- `ENV` - Environment name (dev, prod, etc.)
+- `PROFILES` - Comma-separated profile names
+
+**Database**:
+
+- `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` - MongoDB
+- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSERNAME`, `PGPASSWORD` - PostgreSQL
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DATABASE` - Redis
+
+**Authentication**:
+
+- `JWT_PRIVATE_KEY`, `JWT_EXPIRY`
+- `ACL_PATH`, `ACL_ENABLED` - RBAC config
+
+**Cache/Queue/PubSub**:
+
+- `CACHE_ENABLED`, `CACHE_TYPE`
+- `QUEUE_TYPE`, `REDIS_QUEUE_HOST`, `REDIS_QUEUE_DATABASE`
+- `PUBSUB_TYPE`, `REDIS_PUBSUB_HOST`, `REDIS_PUBSUB_DATABASE`
+
+**Storage**:
+
+- `STORAGE_PROVIDER` (gcp/s3)
+- `STORAGE_BUCKET_NAME`
+- `GCP_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`
+- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+**Other**:
+
+- `SLACK_OAUTH_TOKEN`, `SLACK_CHANNEL_ID`
+- `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_METHODS`, `CORS_ALLOWED_HEADERS`
+
 ## Common Patterns
 
 ### 1. Creating an Application
 
 ```typescript
 import { boot } from 'untangled-web/boot';
-import * as bootLoaders from 'untangled-web/boot/loaders';
+import bootLoaders from 'untangled-web/boot/loaders';
 import { Application, Module } from 'untangled-web/core/http';
 
 @Boot(
@@ -440,21 +621,24 @@ import { Application, Module } from 'untangled-web/core/http';
 })
 export class App extends Application {
   async main() {
-    await this.start({
-      host: Configs.app.host,
-      port: Configs.app.port,
-    });
+    this.cors('*')
+      .on('response', (req, res) =>
+        console.log(req.method, req.path, res.status)
+      )
+      .start({
+        host: Configs.app.host,
+        port: Configs.app.port,
+      });
   }
 }
 
-// Boot the application
 boot(App);
 ```
 
 ### 2. Creating Controllers
 
 ```typescript
-import { Controller, Get, Post, Req } from 'untangled-web/core/http';
+import { Controller, Get, Post } from 'untangled-web/core/http';
 import { Auth, AuthReq } from 'untangled-web/middlewares/auth';
 
 @Controller('/api/users')
@@ -477,7 +661,7 @@ export class UserController {
 ### 3. Creating Services (Beans)
 
 ```typescript
-import { Bean } from 'untangled-web/core/ioc';
+import { Bean, beanOf } from 'untangled-web/core/ioc';
 
 @Bean
 export class UserService {
@@ -496,8 +680,8 @@ export class MyController {
 ### 4. Working with MongoDB
 
 ```typescript
-import { Model } from 'untangled-web/connectors/mongo';
 import { Schema } from 'mongoose';
+import { Model } from 'untangled-web/connectors/mongo';
 
 const User = Model(
   'User',
@@ -508,7 +692,6 @@ const User = Model(
   })
 );
 
-// Use anywhere
 const users = await User.find({ active: true });
 const user = new User({ name: 'John', email: 'john@example.com' });
 await user.save();
@@ -518,19 +701,12 @@ await user.save();
 
 ```typescript
 import { Job, Cron, Runner } from 'untangled-web/core/scheduling';
-import { Queue } from 'untangled-web/core/queue';
 
 @Job
 export class CleanupJob extends Runner {
-  @Cron('0 0 * * *')  // Daily at midnight
+  @Cron('0 0 * * *') // Daily at midnight
   async cleanup() {
     // Cleanup logic
-  }
-
-  @Cron('*/5 * * * *')  // Every 5 minutes
-  async processQueue() {
-    const message = await $(Queue).dequeue('my-queue');
-    // Process message
   }
 }
 
@@ -539,8 +715,8 @@ export class CleanupJob extends Runner {
   bootLoaders.bean({
     scheduler: {
       enabled: true,
-      jobs: [CleanupJob]
-    }
+      jobs: [CleanupJob],
+    },
   })
 )
 ```
@@ -564,85 +740,25 @@ export class App extends Application {
 }
 ```
 
-## Environment Variables
+### 7. Streaming Proxy
 
-The framework uses extensive environment variable configuration. Key variables:
+```typescript
+import { proxyTo } from 'untangled-web/core/http';
 
-**Application**:
-
-- `APP_NAME`, `APP_VERSION`, `APP_DESCRIPTION`
-- `HOST`, `PORT` - Server binding
-- `URL` - Application URL
-
-**Database**:
-
-- `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME` - MongoDB
-- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSERNAME`, `PGPASSWORD` - PostgreSQL
-- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` - Redis
-
-**Authentication**:
-
-- `JWT_PRIVATE_KEY`, `JWT_EXPIRY`
-
-**Cache/Queue/PubSub**:
-
-- `CACHE_ENABLED`, `CACHE_TYPE`
-- `QUEUE_TYPE`, `REDIS_QUEUE_HOST`
-- `PUBSUB_TYPE`, `REDIS_PUBSUB_HOST`
-
-**Storage**:
-
-- `STORAGE_PROVIDER` (gcp/s3)
-- `STORAGE_BUCKET_NAME`
-- `GCP_PROJECT_ID`
-- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
-
-**Other**:
-
-- `ENV` - Environment profile
-- `ACL_PATH`, `ACL_ENABLED` - RBAC config
-- `SLACK_OAUTH_TOKEN`, `SLACK_CHANNEL_ID`
-
-## Development Workflow
-
-### Building
-
-```bash
-bun run build       # Compile TypeScript to dist/
-bun run clean       # Remove dist/ folder
+@Controller('/proxy')
+export class ProxyController {
+  @Post('/forward', { streaming: true })
+  async forward(req: StreamReq) {
+    // Stream request body directly to target without parsing
+    return proxyTo('https://api.example.com/endpoint', {
+      forwardHeaders: true,
+      forwardQuery: true,
+    });
+  }
+}
 ```
 
-### Formatting
-
-```bash
-bun run format      # Format with Prettier
-```
-
-### Publishing
-
-```bash
-bun run bump        # Bump version
-```
-
-### Running Examples
-
-```bash
-cd examples/web-app
-bun install
-bun run dev         # Start development server
-```
-
-## Important Notes
-
-### Known Issues (from TODO.md)
-
-1. **Heavy Dependencies**: Package includes blockchain libraries (viem, ethers) that are heavy for backend
-2. **Monolithic Structure**: Not yet split into separate packages (core + plugins)
-3. **Express Dependency**: Uses Express; Hono is recommended for better performance
-4. **Proxy Feature**: Not working properly at the moment
-5. **Documentation**: Minimal documentation currently available
-
-### Best Practices
+## Best Practices
 
 1. **Use Decorators**: Leverage decorators for clean, declarative configuration
 2. **Bean Lifecycle**: Implement `OnInit` and `OnStop` for proper resource management
@@ -652,20 +768,13 @@ bun run dev         # Start development server
 6. **Logging**: Use structured logging with context objects, not just strings
 7. **Configuration**: Never hardcode - use `Configs` for all environment-specific values
 8. **Async/Await**: All async operations should use async/await, not callbacks
-
-### Testing Considerations
-
-- The framework uses `reflect-metadata` for decorator metadata
-- Bean lifecycle must be properly managed in tests
-- Use `destroy()` to remove beans between tests
-- HTTP context is stored in AsyncLocalStorage
+9. **Streaming**: Use `{ streaming: true }` for proxy routes to avoid body consumption
 
 ## TypeScript Configuration
 
-- **Target**: ES6
+- **Target**: ES2022
 - **Module**: CommonJS
 - **Decorators**: Enabled (experimental + emit metadata)
-- **Strict**: Not enforced but recommended
 - **Lib**: DOM, ESNext
 - **Module Resolution**: Node
 
@@ -673,21 +782,31 @@ bun run dev         # Start development server
 
 **Runtime**:
 
-- express - HTTP server
+- bun - HTTP server (Bun.serve)
 - mongoose - MongoDB ODM
 - typeorm, pg - PostgreSQL
 - redis - Redis client
 - jsonwebtoken - JWT
 - cron - Job scheduling
 - pino - Logging
+- qs - Query string parsing
 
 **Cloud/External**:
 
 - @google-cloud/storage - GCP storage
 - @aws-sdk/client-s3 - AWS S3
 - @slack/web-api - Slack integration
-- ethers, viem - Ethereum (consider removing)
+- ethers, viem - Ethereum
 - graphql-request - GraphQL clients
+- axios - HTTP client
+
+**Dev**:
+
+- typescript - TypeScript compiler
+- prettier - Code formatting
+- @trivago/prettier-plugin-sort-imports - Import sorting
+- eslint - Linting
+- eslint-plugin-unused-imports - Remove unused imports
 
 ## Getting Help
 
@@ -695,6 +814,7 @@ bun run dev         # Start development server
 - Review type definitions in `src/types/`
 - Examine connector implementations for integration patterns
 - Boot loaders in `src/boot/loaders/` show initialization patterns
+- HTTP server implementation in `src/core/http/server/bun.ts`
 
 ## License
 

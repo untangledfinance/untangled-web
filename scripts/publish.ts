@@ -1,6 +1,5 @@
-import { readFile, writeFile, rm as removeFile, exists } from 'fs/promises';
+import { exists, readFile, rm as removeFile, writeFile } from 'fs/promises';
 import { parseArgs } from 'util';
-
 import modules from '../modules.json';
 
 /**
@@ -25,6 +24,11 @@ type Package = {
        * Path to exported types file.
        */
       types: string;
+    };
+  };
+  typesVersions: {
+    '*': {
+      [modulePath: string]: string[];
     };
   };
 };
@@ -72,6 +76,15 @@ async function usePackage(dryrun?: boolean) {
         }
       >
     );
+    pkg.typesVersions = {
+      '*': modules.reduce(
+        (tv, module) => {
+          tv[module] = [`./dist/${module}/index.d.ts`];
+          return tv;
+        },
+        { '*': ['./dist/index.d.ts'] } as Record<string, string[]>
+      ),
+    };
     await writeFile('package.json', JSON.stringify(pkg, null, 2));
     dryrun && console.log(`[dryrun] Updated package.json:\n`, pkg);
     const authToken = process.env.NODE_AUTH_TOKEN;
