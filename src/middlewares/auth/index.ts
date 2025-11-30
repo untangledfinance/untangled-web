@@ -1,6 +1,7 @@
 import { Jwt } from '../../core/jwt';
 import {
   Filter,
+  FileReq,
   HttpContext,
   Req,
   RequestDecorator,
@@ -25,6 +26,21 @@ export const ANONYMOUS = {
  * An authorized {@link Req}uest.
  */
 export type AuthReq<T = any> = Req<T> & {
+  /**
+   * Authorization info.
+   */
+  _auth: {
+    id: number;
+    email: string;
+    roles: Role[];
+    perms: string[];
+  };
+};
+
+/**
+ * An authorized {@link Req}uest with uploaded files (multipart/form-data).
+ */
+export type AuthFileReq<T = any> = FileReq<T> & {
   /**
    * Authorization info.
    */

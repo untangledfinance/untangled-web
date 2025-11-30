@@ -1,7 +1,15 @@
-import { Obj, profiles, withName } from '../types';
+import { profiles, withName } from '../types';
 import { createLogger } from '../logging';
 import { HttpError } from './error';
-import { ProxyOptions, ProxyStore, ProxyURL } from './proxy';
+import {
+  isProxyDirective,
+  ProxyOptions,
+  ProxyStore,
+  ProxyURL,
+  ProxyDirective,
+  streamProxy,
+  streamProxyFromUrl,
+} from './proxy';
 import { HttpContext } from './context';
 
 const logger = createLogger('http');
@@ -17,21 +25,18 @@ export type HttpMethod =
   | 'OPTIONS';
 export type MediaType = 'text/plain' | 'application/json' | string;
 
-export type Req<T = any> = {
-  method: string;
-  url?: string;
-  path?: string;
-  headers?: Record<string, string | string[]>;
-  query?: Record<string, string | string[]>;
-  queryString?: string;
-  params?: Record<string, string>;
-  body?: T;
-  rawBody?: string;
-  bodyParser?: string;
-  encoding?: string;
+export type UploadedFile = {
+  name: string;
+  filename: string;
+  type: string;
+  size: number;
+  data: Blob;
 };
 
-export class ReqObj<T = any> extends Obj {
+/**
+ * Base request properties shared between Req and StreamReq.
+ */
+type BaseReq = {
   method: string;
   url?: string;
   path?: string;
@@ -39,11 +44,84 @@ export class ReqObj<T = any> extends Obj {
   query?: Record<string, string | string[]>;
   queryString?: string;
   params?: Record<string, string>;
-  body?: T;
   rawBody?: string;
   bodyParser?: string;
   encoding?: string;
-}
+  /**
+   * The raw Request object for streaming operations.
+   * Available in Bun runtime for direct access to the request stream.
+   */
+  rawRequest?: Request;
+  /**
+   * Uploaded files from multipart/form-data request.
+   * Available after calling getFiles() or for eager-parsed requests.
+   */
+  files?: UploadedFile[];
+};
+
+/**
+ * Standard request with synchronous body access.
+ * Body is auto-parsed before handler invocation (default behavior).
+ */
+export type Req<T = any> = BaseReq & {
+  body?: T;
+  /**
+   * Lazily parses and returns the request body.
+   * Call this instead of accessing `body` directly for lazy parsing.
+   * After calling, `body` property will contain the cached result.
+   */
+  getBody?: () => Promise<T>;
+  /**
+   * Lazily parses and returns the raw body string.
+   * After calling, `rawBody` property will contain the cached result.
+   */
+  getRawBody?: () => Promise<string | undefined>;
+  /**
+   * Lazily parses and returns uploaded files (multipart/form-data).
+   * After calling, `files` property will contain the cached result.
+   */
+  getFiles?: () => Promise<UploadedFile[] | undefined>;
+};
+
+/**
+ * Streaming request with Promise-based body access.
+ * Use this for routes with `streaming: true` option.
+ * Access body with `await req.body` instead of `req.body`.
+ *
+ * @example
+ * ```ts
+ * @Post('/upload', { streaming: true })
+ * async handleUpload(req: StreamReq) {
+ *   const body = await req.body;
+ *   return { received: body };
+ * }
+ * ```
+ */
+export type StreamReq<T = any> = BaseReq & {
+  /**
+   * Promise that resolves to the parsed request body.
+   * Use `await req.body` to get the body.
+   */
+  body: Promise<T | undefined>;
+  /**
+   * Promise that resolves to the raw body string.
+   */
+  rawBody: Promise<string | undefined>;
+  /**
+   * Promise that resolves to uploaded files (multipart/form-data).
+   */
+  files: Promise<UploadedFile[] | undefined>;
+};
+
+/**
+ * A {@link Req}uest with uploaded files (multipart/form-data).
+ */
+export type FileReq<T = any> = Req<T> & {
+  /**
+   * Uploaded files from multipart/form-data request.
+   */
+  files: UploadedFile[];
+};
 
 export type Res<T = any> = {
   headers?: Record<string, string | string[]>;
@@ -51,13 +129,6 @@ export type Res<T = any> = {
   status?: number;
   completed?: boolean;
 };
-
-export class ResObj<T = any> extends Obj {
-  headers?: Record<string, string | string[]>;
-  data?: T;
-  status?: number;
-  completed?: boolean;
-}
 
 export type RequestHandler<R = any, T = any> = (
   req: Req<R>,
@@ -100,6 +171,13 @@ type RequestOptions = {
    * The request's proxy options.
    */
   proxy?: ProxyOptions;
+  /**
+   * Skip automatic body parsing for this route.
+   * Use this for streaming/proxy handlers that need the raw request stream.
+   * When true, req.body will be undefined until getBody() is called explicitly.
+   * @default false
+   */
+  streaming?: boolean;
 };
 
 export type Route = {
@@ -411,7 +489,7 @@ class RoutingConfigurer {
         method: HttpMethod;
         path: string;
       };
-      return new ResObj({
+      return {
         completed: true,
         data: JSON.stringify({
           timestamp: Date.now(),
@@ -424,7 +502,7 @@ class RoutingConfigurer {
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      };
     };
   }
 
@@ -444,48 +522,45 @@ class RoutingConfigurer {
           return HttpContext.run({ req }, async () => {
             try {
               const next = async (
-                r: { req: ReqObj; res: ResObj },
+                r: { req: Req; res: Res },
                 i = 0
-              ): Promise<{ req: ReqObj; res: ResObj | Response }> => {
-                HttpContext.set({ req: new ReqObj(r.req) });
+              ): Promise<{ req: Req; res: Res | Response }> => {
+                HttpContext.set({ req: r.req });
 
                 if (r.res instanceof Response) return r;
-                if (r.res.completed) {
+                if ((r.res as Res).completed) {
                   return {
-                    req: new ReqObj(r.req),
-                    res: new ResObj({
+                    req: r.req,
+                    res: {
                       status: StatusCode.OK,
                       ...r.res,
                       headers: {
                         ...headers,
                         ...(r.res.headers ?? {}),
                       },
-                    }),
+                    },
                   }; // no need to handle completed request
                 }
 
                 const filter = filters[i];
                 if (filter) {
-                  const filtered = await filter(
-                    new ReqObj(r.req),
-                    new ResObj(r.res),
-                    (rq, rs) =>
-                      next({ req: new ReqObj(rq), res: new ResObj(rs) }, i + 1)
+                  const filtered = await filter(r.req, r.res, (rq, rs) =>
+                    next({ req: rq, res: rs }, i + 1)
                   );
-                  HttpContext.set({ req: new ReqObj(filtered.req) });
+                  HttpContext.set({ req: filtered.req });
 
                   if (filtered.res instanceof Response) return filtered;
-                  if (filtered.res.completed) {
+                  if ((filtered.res as Res).completed) {
                     return {
-                      req: new ReqObj(filtered.req),
-                      res: new ResObj({
+                      req: filtered.req,
+                      res: {
                         status: StatusCode.OK,
                         ...filtered.res,
                         headers: {
                           ...headers,
                           ...(filtered.res.headers ?? {}),
                         },
-                      }),
+                      },
                     };
                   }
                 }
@@ -502,6 +577,19 @@ class RoutingConfigurer {
                   proxy instanceof Promise ? await proxy : proxy
                 ) as ProxyURL;
                 if (proxyUrl) {
+                  // Use streaming proxy if rawRequest is available (Bun runtime)
+                  if (r.req.rawRequest) {
+                    const proxyRes = await streamProxyFromUrl(
+                      r.req.rawRequest,
+                      proxyUrl,
+                      r.req
+                    );
+                    return {
+                      req: r.req,
+                      res: proxyRes,
+                    };
+                  }
+                  // Fallback for non-Bun runtimes (buffered proxy)
                   try {
                     const proxyHeaders = Object.entries(
                       r.req.headers ?? {}
@@ -552,7 +640,7 @@ class RoutingConfigurer {
                     });
 
                     return {
-                      req: new ReqObj(r.req),
+                      req: r.req,
                       res: proxyRes,
                     };
                   } catch (err) {
@@ -560,15 +648,55 @@ class RoutingConfigurer {
                     throw new Error('Proxy error');
                   }
                 } else if (handler) {
+                  // Auto-parse body for non-proxy routes unless streaming mode
+                  if (!options?.streaming && r.req.getBody) {
+                    await r.req.getBody();
+                  }
                   value = (controller ? handler.bind(controller) : handler)(
-                    new ReqObj(r.req),
-                    new ResObj(r.res)
+                    r.req,
+                    r.res
                   );
                 }
                 value = value instanceof Promise ? await value : value;
+
+                // Check if handler returned a ProxyDirective for streaming proxy
+                if (isProxyDirective(value)) {
+                  if (r.req.rawRequest) {
+                    const proxyRes = await streamProxy(
+                      r.req.rawRequest,
+                      value as ProxyDirective,
+                      r.req
+                    );
+                    return {
+                      req: r.req,
+                      res: proxyRes,
+                    };
+                  }
+                  // Fallback: treat as regular proxy URL
+                  const directive = value as ProxyDirective;
+                  const proxyRes = await fetch(directive.url.toString(), {
+                    method: directive.method ?? r.req.method,
+                    headers: {
+                      'X-Forwarded-Path': r.req.path ?? '',
+                      ...directive.headers,
+                    } as Record<string, string>,
+                    body:
+                      directive.forwardBody !== false &&
+                      !['GET', 'HEAD', 'OPTIONS'].includes(
+                        (directive.method ?? r.req.method).toUpperCase()
+                      )
+                        ? req.rawBody
+                        : undefined,
+                  });
+                  return {
+                    req: r.req,
+                    res: proxyRes,
+                  };
+                }
+
                 if (value instanceof Response) {
                   return {
-                    req: new ReqObj(r.req),
+                    req: r.req,
                     res: value,
                   };
                 }
@@ -576,8 +704,8 @@ class RoutingConfigurer {
                   ? MediaConverter.serialize(contentType, value)
                   : null;
                 return {
-                  req: new ReqObj(r.req),
-                  res: new ResObj({
+                  req: r.req,
+                  res: {
                     completed: true,
                     data: content,
                     status: status ?? StatusCode.OK,
@@ -585,14 +713,11 @@ class RoutingConfigurer {
                       ...headers,
                       ...(res.headers ?? {}),
                     },
-                  }),
+                  },
                 };
               };
-              const r = await next({
-                req: new ReqObj(req),
-                res: new ResObj(res),
-              });
-              return r.res as ResObj | Response;
+              const r = await next({ req, res });
+              return r.res as Res | Response;
             } catch (err) {
               if (!(err instanceof HttpError)) {
                 logger.error(`${err.message}\n`, err);
@@ -668,10 +793,15 @@ export type Filter<T = any> = (
   res: Res | Response;
 }>;
 
-export type Handler<T = Res> = (
-  req: Req,
+export type Handler<T = Res, R extends Req | StreamReq = Req> = (
+  req: R,
   res: Res
-) => Promise<Res | Response | T>;
+) => Promise<Res | Response | ProxyDirective | T>;
+
+/**
+ * Handler for streaming routes that receive StreamReq.
+ */
+export type StreamHandler<T = Res> = Handler<T, StreamReq>;
 
 export interface Router {
   /**
@@ -700,14 +830,23 @@ export interface Router {
    * @param path the path.
    * @param handler the handler.
    */
-  route<T = Res>(method: HttpMethod, path: string, handler: Handler<T>): this;
+  route<T = Res, R extends Req | StreamReq = Req>(
+    method: HttpMethod,
+    path: string,
+    handler: Handler<T, R>,
+    options?: { streaming?: boolean }
+  ): this;
   /**
    * Configures a `*` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  request<T = Res>(path: string, handler: Handler<T>): this;
+  request<T = Res, R extends Req | StreamReq = Req>(
+    path: string,
+    handler: Handler<T, R>,
+    options?: { streaming?: boolean }
+  ): this;
   /**
    * Configures a `GET` routing at a specific path.
    * @param path the path.
@@ -721,21 +860,33 @@ export interface Router {
    * @param handler the handler.
    * @see route
    */
-  post<T = Res>(path: string, handler: Handler<T>): this;
+  post<T = Res, R extends Req | StreamReq = Req>(
+    path: string,
+    handler: Handler<T, R>,
+    options?: { streaming?: boolean }
+  ): this;
   /**
    * Configures a `PUT` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  put<T = Res>(path: string, handler: Handler<T>): this;
+  put<T = Res, R extends Req | StreamReq = Req>(
+    path: string,
+    handler: Handler<T, R>,
+    options?: { streaming?: boolean }
+  ): this;
   /**
    * Configures a `PATCH` routing at a specific path.
    * @param path the path.
    * @param handler the handler.
    * @see route
    */
-  patch<T = Res>(path: string, handler: Handler<T>): this;
+  patch<T = Res, R extends Req | StreamReq = Req>(
+    path: string,
+    handler: Handler<T, R>,
+    options?: { streaming?: boolean }
+  ): this;
   /**
    * Configures a `DELETE` routing at a specific path.
    * @param path the path.

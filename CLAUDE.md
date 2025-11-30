@@ -7,10 +7,11 @@
 ### Key Information
 
 - **Language**: TypeScript 5.7.3
-- **Runtime**: Bun (primary), Node.js compatible
-- **Main Framework**: Express.js (HTTP server)
+- **Runtime**: Bun (native, required)
+- **Main Framework**: Bun.serve (HTTP server)
 - **Architecture**: IoC container with decorator-based configuration
 - **Module System**: CommonJS (compiled output)
+- **Package Manager**: Bun
 
 ## Architecture Principles
 
@@ -73,7 +74,21 @@ The framework heavily uses TypeScript decorators for declarative configuration:
 
 ### HTTP Server (`src/core/http/`)
 
-**Express-based server** with routing, middleware, and filters:
+**Bun-based server** with routing, middleware, and filters.
+
+> **Migration Complete**: Express has been fully removed and replaced with Bun.serve as the single embedded HTTP server. The Express factory (`src/core/http/server/express.ts`) was deleted and all dependencies removed from `package.json`.
+
+**Server Implementation**: `src/core/http/server/bun.ts`
+
+**Key Features**:
+
+- Lazy body parsing (body parsed only when handler is invoked)
+- Full request parsing (JSON, urlencoded, text, raw, multipart/form-data)
+- File upload support with `UploadedFile` type
+- Streaming proxy support with `proxyTo()` directive
+- Native `Response` object passthrough
+- Built-in CORS handling
+- Path parameter extraction
 
 ```typescript
 @Module({
@@ -97,6 +112,104 @@ export class App extends Application {
 - **Context**: `HttpContext` stores current request context
 - **Error Handling**: `HttpError` subclasses (NotFoundError, UnauthorizedError, etc.)
 - **CORS**: Built-in CORS support with `cors()` method
+
+**Request Types** (in `src/core/http/core.ts`):
+
+```typescript
+// Standard request - body is auto-parsed before handler runs
+type Req<T> = {
+  method: string;
+  path?: string;
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
+  params?: Record<string, string>;
+  body?: T; // Populated automatically (default behavior)
+  rawBody?: string;
+  files?: UploadedFile[];
+  getBody?: () => Promise<T>; // Explicit lazy parsing
+  getRawBody?: () => Promise<string | undefined>;
+  getFiles?: () => Promise<UploadedFile[] | undefined>;
+  rawRequest?: Request; // Original request for streaming
+};
+
+// Streaming request - use `await req.body` for lazy parsing
+type StreamReq<T> = {
+  method: string;
+  path?: string;
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | string[]>;
+  params?: Record<string, string>;
+  body: Promise<T | undefined>; // Promise-based
+  rawBody: Promise<string | undefined>; // Promise-based
+  files: Promise<UploadedFile[] | undefined>; // Promise-based
+  rawRequest?: Request;
+};
+
+// Represents an uploaded file
+interface UploadedFile {
+  name: string; // Form field name
+  filename: string; // Original filename
+  type: string; // MIME type
+  size: number; // File size in bytes
+  data: Blob; // File content as Blob
+}
+
+// Request with file uploads
+type FileReq<T> = Req<T> & { files: UploadedFile[] };
+```
+
+**Body Parsing Modes**:
+
+```typescript
+// 1. Default: Auto-parsed - req.body works directly
+@Post('/users')
+async createUser(req: Req<CreateUserDto>) {
+  const { name, email } = req.body;  // Already parsed
+  return { created: { name, email } };
+}
+
+// 2. Streaming: Use await req.body (for proxy/streaming handlers)
+@Post('/upload', { streaming: true })
+async handleUpload(req: StreamReq) {
+  const body = await req.body;   // Parsed on demand
+  const files = await req.files; // Parsed on demand
+  return { received: body };
+}
+
+// 3. Group-based streaming route
+this.post('/stream', async (req: StreamReq) => {
+  const body = await req.body;
+  return { data: body };
+}, { streaming: true });
+```
+
+**Streaming Proxy**:
+
+```typescript
+import { proxyTo } from './core/http/proxy';
+
+// Return proxyTo() directive to stream request to target
+@Post('/proxy', { streaming: true })
+async proxyRequest(req: StreamReq) {
+  // Body is NOT parsed - streams directly to target
+  return proxyTo('https://api.example.com/endpoint');
+}
+```
+
+**Authenticated File Upload Type** (in `src/middlewares/auth/index.ts`):
+
+```typescript
+// Combines authentication and file upload
+type AuthFileReq<T> = FileReq<T> & {
+  _auth: { id: string; email: string; roles: string[] };
+};
+```
+
+**Controller Return Rules**:
+
+- Return raw JS data (object/array/string) for automatic JSON serialization
+- Return native `Response` object for custom status/headers/body
+- Do NOT return `ResObj` directly from handlers
 
 ### Boot System (`src/boot/`)
 
@@ -638,9 +751,7 @@ bun run dev         # Start development server
 
 1. **Heavy Dependencies**: Package includes blockchain libraries (viem, ethers) that are heavy for backend
 2. **Monolithic Structure**: Not yet split into separate packages (core + plugins)
-3. **Express Dependency**: Uses Express; Hono is recommended for better performance
-4. **Proxy Feature**: Not working properly at the moment
-5. **Documentation**: Minimal documentation currently available
+3. **Documentation**: Minimal documentation currently available
 
 ### Best Practices
 
@@ -673,7 +784,7 @@ bun run dev         # Start development server
 
 **Runtime**:
 
-- express - HTTP server
+- bun - HTTP server (Bun.serve)
 - mongoose - MongoDB ODM
 - typeorm, pg - PostgreSQL
 - redis - Redis client
