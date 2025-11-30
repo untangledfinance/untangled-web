@@ -252,6 +252,46 @@ export type MongoHttpOptions = Partial<{
 /**
  * Uses {@link Mongo} via REST APIs.
  */
+/**
+ * Escapes a CSV value properly (handles commas, quotes, newlines).
+ * @param value the value to escape.
+ */
+function escapeCsvValue(value: any): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  const str = String(value);
+  if (
+    str.includes(',') ||
+    str.includes('"') ||
+    str.includes('\n') ||
+    str.includes('\r')
+  ) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Converts a document to a CSV row.
+ * @param doc the document.
+ * @param columns the columns to include.
+ */
+function docToCsvRow<T>(doc: T, columns: string[]): string {
+  const values = flatten<Record<string, any>>(doc, 10, (val) => {
+    if (val instanceof Date) {
+      return val.toISOString();
+    }
+    if (val instanceof ObjectId) {
+      return val.toHexString();
+    }
+    return val;
+  });
+  return (
+    columns.map((column) => escapeCsvValue(values[column])).join(',') + '\n'
+  );
+}
+
 export function useMongoREST(options: MongoHttpOptions = {}) {
   const getMongo = () => {
     const use = options.use || Mongo;
@@ -327,53 +367,57 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
     }
 
     /**
-     * Returns a {@link Response} that attaches a CSV file
-     * for downloading the given data.
+     * Returns a streaming {@link Response} for CSV export.
+     * Data is streamed directly from the MongoDB cursor without buffering.
      * @param name name of the CSV file.
-     * @param data the downloading data.
+     * @param cursor the MongoDB cursor.
      * @param columns columns in the CSV file.
      */
-    csv<T>(name: string, data: T[], ...columns: string[]): Response {
-      if (!columns.length) {
-        throw new BadRequestError('Must select columns to export');
+    csvStream<T>(
+      name: string,
+      cursor: AsyncIterable<T> | T[],
+      columns: string[]
+    ): Response {
+      if (!columns.length || columns.includes('*')) {
+        throw new BadRequestError(
+          'Must specify columns to export with select parameter'
+        );
       }
 
-      let content = '';
-      for (const column of columns) {
-        content += column.includes(',') ? `"${column}",` : `${column},`;
-      }
-      content += '\n';
-      for (const doc of data) {
-        const values = flatten<Record<string, any>>(doc, 10, (val) => {
-          if (val instanceof Date) {
-            return val.toISOString();
+      const self = this;
+      const encoder = new TextEncoder();
+
+      const { readable, writable } = new TransformStream();
+
+      (async () => {
+        const writer = writable.getWriter();
+        try {
+          const header =
+            columns.map((col) => escapeCsvValue(col)).join(',') + '\n';
+          await writer.write(encoder.encode(header));
+
+          const iterable = Array.isArray(cursor) ? cursor : cursor;
+          for await (const doc of iterable) {
+            const row = docToCsvRow(doc, columns);
+            await writer.write(encoder.encode(row));
           }
-          if (val instanceof ObjectId) {
-            return val.toHexString();
-          }
-          return val;
-        });
-        for (const column of columns) {
-          const value = values[column];
-          if (value === undefined) {
-            content += ',';
-          } else {
-            content += `${value}`.includes(',') ? `"${value}",` : `${value},`;
-          }
+        } catch (err) {
+          self.logger.error('CSV stream error:', err);
+        } finally {
+          await writer.close();
         }
-        content += '\n';
-      }
+      })();
 
-      return new Response(
-        new File([content], name.endsWith('.csv') ? name : `${name}.csv`, {
-          type: 'text/csv',
+      const fileName = name.endsWith('.csv') ? name : `${name}.csv`;
+
+      return new Response(readable, {
+        headers: new Headers({
+          'content-type': 'text/csv',
+          'content-disposition': `attachment; filename="${fileName}"`,
+          'transfer-encoding': 'chunked',
+          'cache-control': 'no-cache',
         }),
-        {
-          headers: new Headers({
-            'content-type': 'text/csv',
-          }),
-        }
-      );
+      });
     }
 
     /**
@@ -436,9 +480,9 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
         { projection }
       );
 
-      if (format === 'csv' && fields.length) {
+      if (format === 'csv') {
         const fileName = `${collection}_${id}_${Date.now()}.csv`;
-        return this.csv(fileName, [data], ...fields);
+        return this.csvStream(fileName, [data], fields);
       }
 
       return {
@@ -470,9 +514,20 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
       );
 
       const { fields, projection } = this.toFields(select as string);
+
       this.logger.debug(
         `[${db}] Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
+
+      if (format === 'csv') {
+        const col = this.collection(collection, db as string);
+        let cursor = col.find(filter, { projection }).sort(order).skip(offset);
+        if (pageSize > 0) {
+          cursor = cursor.limit(pageSize);
+        }
+        const fileName = `${collection}_${Date.now()}.csv`;
+        return this.csvStream(fileName, cursor, fields);
+      }
 
       const col = this.collection(collection, db as string);
 
@@ -485,11 +540,6 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
           .limit(pageSize > 0 && pageSize)
           .toArray(),
       ]);
-
-      if (format === 'csv' && fields.length) {
-        const fileName = `${collection}_p${page}_s${offset}_${Date.now()}.csv`;
-        return this.csv(fileName, data, ...fields);
-      }
 
       return {
         metadata: {
