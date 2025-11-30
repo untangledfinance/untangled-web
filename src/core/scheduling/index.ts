@@ -1,7 +1,7 @@
 import { CronJob } from 'cron';
-import { Callable, isString, notImplementedYet, withName } from '../types';
 import { OnStop } from '../ioc';
 import { createLogger } from '../logging';
+import { Callable, isString, notImplementedYet, withName } from '../types';
 
 const logger = createLogger('cron');
 

@@ -320,7 +320,10 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
         }
       }
       const mongo = getMongo();
-      return mongo.db(db || dbNames.at(0)).collection(name);
+      const dbName = db || dbNames.at(0);
+      const database = mongo.db(dbName);
+      const col = database.collection(name);
+      return col;
     }
 
     /**
@@ -461,17 +464,21 @@ export function useMongoREST(options: MongoHttpOptions = {}) {
       const pageSize = num(size) || 20;
       const pageNumber = num(page) || 0;
       const offset = Math.max(pageSize, 0) * Math.max(pageNumber, 0);
+
       const { filter, order } = QueryParser.parse(
         qs.parse(query as Record<string, string>)
       );
+
       const { fields, projection } = this.toFields(select as string);
       this.logger.debug(
         `[${db}] Select ${fields} From "${collection}" Where ${JSON.stringify(filter)} Order by ${JSON.stringify(order)} Skip ${offset} Limit ${pageSize}`
       );
 
+      const col = this.collection(collection, db as string);
+
       const [total, data] = await Promise.all([
-        this.collection(collection, db as string).countDocuments(filter),
-        this.collection(collection, db as string)
+        col.countDocuments(filter),
+        col
           .find(filter, { projection })
           .sort(order)
           .skip(offset)

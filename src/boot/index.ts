@@ -1,4 +1,4 @@
-import '../global'; // load global context
+// load global context
 import { BeforeInit, shutdown } from '../core/ioc';
 import { createLogger } from '../core/logging';
 import {
@@ -8,6 +8,7 @@ import {
   withName,
   withSymbol,
 } from '../core/types';
+import '../global';
 import { BootLoader, globalConfigs, runConfigs } from './loaders';
 
 const logger = createLogger('boot');

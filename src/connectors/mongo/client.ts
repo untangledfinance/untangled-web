@@ -1,13 +1,13 @@
 import mongoose from 'mongoose';
-import { beanOf, OnInit, OnStop } from '../../core/ioc';
+import { OnInit, OnStop, beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { noBigInt } from '../../core/types';
-import { TModel } from './types';
 import {
-  attachAuditMiddleware,
   AuditOptions,
   DEFAULT_AUDIT_COLLECTION_NAME_SUFFIX,
+  attachAuditMiddleware,
 } from './audit';
+import { TModel } from './types';
 
 export const SYSTEM_DATABASES = ['admin', 'local', 'config'];
 

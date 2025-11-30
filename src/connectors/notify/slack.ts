@@ -1,5 +1,5 @@
 import { ErrorCode, KnownBlock, WebClient } from '@slack/web-api';
-import { createLogger, Logger } from '../../core/logging';
+import { Logger, createLogger } from '../../core/logging';
 import { NotifyConnector } from '../../core/notify';
 import { isString } from '../../core/types';
 

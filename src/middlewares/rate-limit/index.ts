@@ -90,9 +90,7 @@ export function RateLimit(options: Partial<RateLimitOptions> = {}) {
     const handler = descriptor.value;
     descriptor.value = async function <T>(req: Req<T>, res: Res) {
       const checked = await filter(req, res);
-      return HttpContext.run(checked, () =>
-        handler.bind(this)(checked.req, checked.res)
-      );
+      return HttpContext.run(checked, () => handler.bind(this)(checked.req));
     };
   };
 }

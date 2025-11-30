@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 import {
   Chain,
+  HttpTransport,
   createPublicClient,
   createWalletClient,
   extractChain,
   http,
-  HttpTransport,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as viemChains from 'viem/chains';

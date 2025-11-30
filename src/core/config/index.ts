@@ -1,7 +1,7 @@
 import fs from 'fs';
+import { createLogger } from '../logging';
 import { isString } from '../types';
 import { Catch } from '../validation';
-import { createLogger } from '../logging';
 
 const logger = createLogger('config');
 

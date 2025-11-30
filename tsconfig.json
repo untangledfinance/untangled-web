@@ -3,7 +3,7 @@
   "exclude": ["node_modules"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "types": ["node"],
+    "types": ["node", "bun"],
     "paths": {
       "untangled-web/*": ["./dist/*"],
       "untangled-web": ["./dist"]

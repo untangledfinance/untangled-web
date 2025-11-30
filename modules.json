@@ -35,5 +35,6 @@
   "boot/decorators",
   "boot/utils",
   "middlewares/auth",
+  "middlewares/cache",
   "middlewares/rate-limit"
 ]

@@ -1,8 +1,8 @@
-import * as ssh2 from 'ssh2';
 import fs from 'fs';
 import net from 'net';
-import { createLogger, Log, Logger } from '../logging';
+import * as ssh2 from 'ssh2';
 import { OnStop } from '../ioc';
+import { Log, Logger, createLogger } from '../logging';
 
 /**
  * A special port that requires host translation to make it accessible.

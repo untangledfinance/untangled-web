@@ -1,5 +1,5 @@
-import { Jwt } from '../../core/jwt';
 import {
+  FileReq,
   Filter,
   HttpContext,
   Req,
@@ -7,9 +7,10 @@ import {
   Res,
   UnauthorizedError,
 } from '../../core/http';
+import { beanOf } from '../../core/ioc';
+import { Jwt } from '../../core/jwt';
 import { RbacValidator } from '../../core/rbac';
 import { Role } from '../../core/types';
-import { beanOf } from '../../core/ioc';
 
 /**
  * No-auth authorization (with role `anonymous`).
@@ -25,6 +26,21 @@ export const ANONYMOUS = {
  * An authorized {@link Req}uest.
  */
 export type AuthReq<T = any> = Req<T> & {
+  /**
+   * Authorization info.
+   */
+  _auth: {
+    id: number;
+    email: string;
+    roles: Role[];
+    perms: string[];
+  };
+};
+
+/**
+ * An authorized {@link Req}uest with uploaded files (multipart/form-data).
+ */
+export type AuthFileReq<T = any> = FileReq<T> & {
   /**
    * Authorization info.
    */
@@ -141,7 +157,7 @@ export function Auth(...permissions: Permission[]) {
     descriptor.value = async function <T>(req: AuthReq<T>, res: Res) {
       const authorized = await jwt<T>(req, res, ...permissions);
       return HttpContext.run(authorized, () =>
-        handler.bind(this)(authorized.req, authorized.res)
+        handler.bind(this)(authorized.req)
       );
     };
   };
@@ -160,7 +176,7 @@ Auth.AllowAnonymous = function (...permissions: Permission[]) {
     descriptor.value = async function <T>(req: AuthReq<T>, res: Res) {
       const authorized = await jwt.allowAnonymous<T>(req, res, ...permissions);
       return HttpContext.run(authorized, () =>
-        handler.bind(this)(authorized.req, authorized.res)
+        handler.bind(this)(authorized.req)
       );
     };
   };
