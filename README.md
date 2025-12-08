@@ -28,12 +28,12 @@ bun add untangled-web
 ```typescript
 import {
   Application,
-  Module,
   Controller,
+  FileReq,
   Get,
+  Module,
   Post,
   Req,
-  FileReq,
 } from 'untangled-web';
 
 @Controller('/api')
@@ -73,7 +73,7 @@ You can take a look at the available [examples](/examples/) to explore framework
 
 ## Documentation
 
-See [CLAUDE.md](/CLAUDE.md) for detailed framework documentation including:
+See [LLM_AGENT_GUIDE.md](/LLM_AGENT_GUIDE.md) for detailed framework documentation (used as LLM agents' initial knowledge) including:
 
 - Architecture principles and IoC container
 - HTTP decorators and routing
