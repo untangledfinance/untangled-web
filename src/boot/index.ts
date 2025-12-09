@@ -5,6 +5,7 @@ import {
   ClassDecorator,
   classOf,
   getSymbol,
+  promise,
   withName,
   withSymbol,
 } from '../core/types';
@@ -33,6 +34,11 @@ export interface Bootable {
    * @param args command-line arguments.
    */
   main: (...args: string[]) => void | Promise<void>;
+  /**
+   * Executes after the bean class is completely "boot"ed.
+   * This function runs after the {@link main} execution.
+   */
+  onBooted?: () => void | Promise<void>;
 }
 
 /**
@@ -92,9 +98,20 @@ export function boot<T = Bootable>(cls: Class<T>, ...args: any[]) {
         );
       }
     }
+    logger.debug(`Booting '${cls.name}'...`);
     await beforeInit();
     const instance = new cls(...args);
-    setImmediate(() => (instance as Bootable)?.main?.(...process.argv));
+    setImmediate(async () => {
+      try {
+        const bootable = instance as Bootable;
+        await promise(bootable?.main?.(...process.argv));
+        await promise(bootable?.onBooted?.());
+        logger.debug(`'${cls.name}' booted.`);
+      } catch (err) {
+        logger.error(`'${cls.name}' boot failed: ${err.message}\n`, err);
+        shutdown();
+      }
+    });
     return instance;
   });
 }

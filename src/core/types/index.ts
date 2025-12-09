@@ -646,3 +646,11 @@ export function noBigInt(obj: any): any {
   }
   return obj;
 }
+
+/**
+ * Simply returns a {@link Promise} version of an object.
+ * @param obj the object or a {@link Promise} of the object.
+ */
+export async function promise<T = any>(obj: T | Promise<T>): Promise<T> {
+  return obj;
+}
