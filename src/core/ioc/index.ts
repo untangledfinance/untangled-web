@@ -1,4 +1,5 @@
 import asyncHooks from 'async_hooks';
+import 'reflect-metadata';
 import { createLogger } from '../logging';
 import {
   Symbolization,
@@ -17,11 +18,70 @@ const BeanSymbol = Symbol.for('__bean__');
 const AutoSymbol = Symbol.for('__auto__');
 
 /**
+ * Metadata key for storing stable bean names.
+ * Uses Symbol.for() for cross-module consistency.
+ * Captured at decoration time to survive minification.
+ */
+const BEAN_NAME_KEY = Symbol.for('ioc:bean:name');
+
+/**
+ * Stores a stable bean name as metadata on a class.
+ * Called at decoration time to capture the name before minification.
+ * Only sets metadata if not already defined (first decorator wins).
+ * @param cls The class constructor
+ * @param name The stable bean name to store
+ */
+function setBeanName<T>(cls: Class<T> | AbstractClass<T>, name: string): void {
+  if (!Reflect.hasMetadata(BEAN_NAME_KEY, cls)) {
+    Reflect.defineMetadata(BEAN_NAME_KEY, name, cls);
+  }
+}
+
+/**
+ * Retrieves the stable bean name from class metadata.
+ * Returns undefined if no metadata has been set.
+ * @param cls The class constructor
+ * @returns The stored bean name, or undefined if not set
+ */
+function getBeanName<T>(cls: Class<T> | AbstractClass<T>): string | undefined {
+  return Reflect.getMetadata(BEAN_NAME_KEY, cls);
+}
+
+/**
+ * Resolves the bean name using priority chain:
+ * 1. Explicit name parameter (if provided)
+ * 2. Metadata stored on class (minification-safe)
+ * 3. cls.name fallback (for non-decorated classes)
+ *
+ * @param cls The class constructor
+ * @param explicitName Optional explicit name override
+ * @returns The resolved bean name
+ */
+function resolveBeanName<T>(
+  cls: Class<T> | AbstractClass<T>,
+  explicitName?: string
+): string {
+  if (explicitName) {
+    return explicitName;
+  }
+  const metadataName = getBeanName(cls);
+  if (metadataName) {
+    return metadataName;
+  }
+  return cls.name;
+}
+
+/**
  * Returns a singleton version of a class.
  * @param cls the class.
  */
 export function asSingleton<C extends Class<any>>(cls: C) {
   let instance: any;
+  const className = cls.name;
+
+  // Store class name in metadata to survive minification
+  setBeanName(cls, className);
+
   const singleton = withName(
     class {
       constructor(...args: any[]) {
@@ -32,8 +92,12 @@ export function asSingleton<C extends Class<any>>(cls: C) {
           })()) as any;
       }
     } as C,
-    cls.name
+    className
   );
+
+  // Also store on wrapper class
+  setBeanName(singleton, className);
+
   return withClass(withSymbol(singleton, SingletonSymbol), cls);
 }
 
@@ -208,7 +272,8 @@ export function beanOf<T>(cls: Class<T> | string, unsafe?: boolean) {
   if (hasSymbol(clz, AutoSymbol)) {
     new clz();
   }
-  const name = clz.name;
+  // Use metadata resolution instead of directly accessing cls.name
+  const name = isClass(cls) ? resolveBeanName(clz) : (cls as string);
   return unsafe ? Container.unsafeGet<T>(name) : Container.get<T>(name);
 }
 
@@ -221,7 +286,7 @@ beanOf.type = <T>(cls: Class<T> | AbstractClass<T>) => {
   return (name: string, unsafe?: boolean) => {
     const found = beanOf<T>(name, unsafe);
     if (found && !(found instanceof cls)) {
-      throw new Error(`${name} is not ${cls.name}`);
+      throw new Error(`${name} is not ${resolveBeanName(cls)}`);
     }
     return found;
   };
@@ -239,7 +304,8 @@ export function destroy<T>(
   name?: string,
   filter?: (instance: T) => boolean
 ) {
-  const beanName = name ?? cls.name;
+  // Use metadata resolution instead of directly accessing cls.name
+  const beanName = name ?? resolveBeanName(cls);
   const bean = Container.unsafeGet<T>(beanName, filter);
   if (!bean) {
     return {
@@ -272,12 +338,14 @@ export function restart<T>(
   name?: string,
   ...args: any[]
 ) {
-  const removed = destroy(cls, name ?? cls.name);
-  const { type, instance, name: beanName } = removed;
+  // Use metadata resolution instead of directly accessing cls.name
+  const beanName = name ?? resolveBeanName(cls);
+  const removed = destroy(cls, beanName);
+  const { type, instance, name: removedBeanName } = removed;
   if (!instance) {
-    throw new Error(`Bean "${beanName}" not found`);
+    throw new Error(`Bean "${removedBeanName}" not found`);
   }
-  const beanType = asBean(type, beanName);
+  const beanType = asBean(type, removedBeanName);
   return {
     /**
      * The removed instance of the bean.
@@ -337,6 +405,8 @@ export function register<T>(
   name?: string
 ) {
   const beanName = name ?? cls.name;
+  // Store in metadata for future lookups
+  setBeanName(cls as Class<T>, beanName);
   Container.add(beanName, instance, cls);
 }
 
@@ -345,12 +415,20 @@ export function register<T>(
  * @param cls the class.
  * @returns a singleton version of the given class.
  */
-export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
-  const singleton = asSingleton<typeof cls>(
+export function asBean<T>(cls: Class<T>, name?: string): Class<T> {
+  // Resolve bean name using metadata chain
+  const beanName = name ?? cls.name;
+
+  // Store in metadata for future lookups (survives minification)
+  setBeanName(cls, beanName);
+
+  const singleton = asSingleton(
+    // @ts-ignore
     class extends cls {
       constructor(...args: any[]) {
         super(...args);
-        Container.add(name ?? cls.name, this, cls);
+        // Use captured bean name
+        Container.add(beanName, this as unknown as T, cls);
         const onInit = () => {
           (this as unknown as OnInit).onInit?.();
           Symbolization.process(cls, PostConstructSymbol, this, {
@@ -364,7 +442,11 @@ export function asBean<T>(cls: Class<any>, name?: string): Class<T> {
       }
     }
   );
-  return withName(withSymbol(singleton, BeanSymbol), name ?? cls.name);
+
+  // Also store on wrapper class
+  setBeanName(singleton, beanName);
+
+  return withName(withSymbol(singleton, BeanSymbol), beanName);
 }
 
 /**
@@ -379,7 +461,7 @@ export function isBean<T>(cls: Class<T>) {
  * Immediately initializes a bean when calling {@link beanOf}.
  * @param cls the class.
  */
-export function autoBean<T>(cls: Class<any>): Class<T> {
+export function autoBean<T>(cls: Class<T>): Class<T> {
   const beanClass = asBean<T>(cls);
   return withSymbol(beanClass, AutoSymbol);
 }
