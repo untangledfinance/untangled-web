@@ -59,6 +59,12 @@ export type Configurations<E extends Env = Env> = {
       tls?: boolean;
       migrationRoot?: string;
     };
+    sqlite: {
+      database?: string;
+      migrationRoot?: string;
+      enableWAL?: boolean;
+      busyTimeout?: number;
+    };
     redis: {
       host?: string;
       port?: number;

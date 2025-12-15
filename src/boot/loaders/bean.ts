@@ -6,6 +6,10 @@ import { EntityType, Postgres } from '../../connectors/postgres';
 import { RedisPublisher, RedisSubscriber } from '../../connectors/pubsub';
 import { RedisQueue, ReliableRedisQueue } from '../../connectors/queue';
 import {
+  SQLite,
+  EntityType as SqliteEntityType,
+} from '../../connectors/sqlite';
+import {
   GoogleCloudStorageConnector,
   S3Connector,
 } from '../../connectors/storage';
@@ -58,6 +62,25 @@ async function initializePostgresDatabase(
     ...entities
   );
   return postgres;
+}
+
+/**
+ * Initializes SQLite connections.
+ */
+async function initializeSqliteDatabase(
+  configs: Configurations,
+  ...entities: SqliteEntityType[]
+) {
+  const sqlite = new (asBean<SQLite>(SQLite))(
+    {
+      database: configs.db.sqlite.database,
+      migrationRoot: configs.db.sqlite.migrationRoot,
+      enableWAL: configs.db.sqlite.enableWAL,
+      busyTimeout: configs.db.sqlite.busyTimeout,
+    },
+    ...entities
+  );
+  return sqlite;
 }
 
 /**
@@ -271,6 +294,17 @@ export type InitOptions = Partial<{
            */
           entities: EntityType[];
         };
+    /**
+     * SQLite.
+     */
+    sqlite:
+      | boolean
+      | {
+          /**
+           * Accepted SQLite entities.
+           */
+          entities: SqliteEntityType[];
+        };
   }>;
   /**
    * Storage.
@@ -355,6 +389,13 @@ export default ((init) => async () => {
         ? init.database.postgres.entities
         : [];
     await initializePostgresDatabase(configs, ...entities);
+  }
+  if (init.database?.sqlite) {
+    const entities =
+      typeof init.database.sqlite === 'object'
+        ? init.database.sqlite.entities
+        : [];
+    await initializeSqliteDatabase(configs, ...entities);
   }
   init.storage && (await initializeStorageConnector(configs));
   init.jwt && (await configureJwt(configs));
