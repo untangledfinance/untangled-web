@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, test } from 'bun:test';
-import type { FileReq, Req, Res, StreamReq } from '../../src/core/http/core';
+import type { Req, Res, StreamReq } from '../../src/core/http/core';
 import {
   PROXY_DIRECTIVE,
   isProxyDirective,

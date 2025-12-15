@@ -86,6 +86,12 @@ function envConfigs(): Partial<Configurations> {
         tls: env('PGSSL') === 'true',
         migrationRoot: env('PGMIGRATIONS'),
       },
+      sqlite: {
+        database: env('SQLITE_DATABASE'),
+        migrationRoot: env('SQLITE_MIGRATIONS'),
+        enableWAL: env('SQLITE_WAL') !== 'false',
+        busyTimeout: parseInt(env('SQLITE_BUSY_TIMEOUT')) || 5000,
+      },
       redis: {
         host: env('REDIS_HOST'),
         port: parseInt(env('REDIS_PORT')) || 6379,
