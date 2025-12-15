@@ -1,9 +1,9 @@
 {
-  "include": ["src"],
+  "include": ["src", "tests"],
   "exclude": ["node_modules"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "types": ["node", "bun"],
+    "types": ["bun"],
     "paths": {
       "untangled-web/*": ["./dist/*"],
       "untangled-web": ["./dist"]
