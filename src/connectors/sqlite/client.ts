@@ -73,7 +73,7 @@ export class SQLite implements OnInit, OnStop {
 
   /**
    * Retrieves a SQLite client.
-   * 
+   *
    * Note: Unlike the Postgres connector, SQLite does not provide a db() method
    * for switching databases. SQLite typically uses a single database file per connection.
    * To work with multiple SQLite databases, create separate SQLite instances with

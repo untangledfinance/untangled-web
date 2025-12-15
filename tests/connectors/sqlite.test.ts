@@ -1,12 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+import 'reflect-metadata';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import {
   BaseEntity,
   EntityType,
   SqliteOptions,
 } from '../../src/connectors/sqlite/types';
-import { SQLite } from '../../src/connectors/sqlite/client';
-import { existsSync, unlinkSync } from 'fs';
 
 // Test entity for SQLite connector tests
 class TestUser extends BaseEntity<TestUser> {
@@ -572,45 +571,45 @@ describe('SQLite Connector - Type Definitions', () => {
 describe('SQLite Connector - Integration Tests', () => {
   /**
    * Integration tests for SQLite connector using bun:sqlite.
-   * 
+   *
    * NOTE: These tests use Bun's built-in SQLite support (bun:sqlite).
    * No external packages are required when running with Bun.
-   * 
+   *
    * The tests verify the following functionality:
-   * 
+   *
    * 1. Database Connection
    *    - Should connect to SQLite database successfully
    *    - Should provide a valid client instance
    *    - Should report correct database type
-   * 
+   *
    * 2. Repository Operations
    *    - Should create repositories for entities
    *    - Should insert and retrieve records
    *    - Should update existing records
    *    - Should delete records
    *    - Should query multiple records with conditions
-   * 
+   *
    * 3. Transaction Support
    *    - Should execute operations within transactions
    *    - Should rollback transactions on errors
    *    - Should support nested transactions with proper propagation
-   * 
+   *
    * 4. Query Operations
    *    - Should execute raw SQL queries
    *    - Should count records
    *    - Should support complex query builders
-   * 
+   *
    * 5. Error Handling
    *    - Should handle invalid queries gracefully
    *    - Should handle constraint violations
    *    - Should handle connection errors
-   * 
+   *
    * Example test implementation:
-   * 
+   *
    * ```typescript
    * const testDbPath = ':memory:';
    * let sqlite: SQLite;
-   * 
+   *
    * beforeAll(async () => {
    *   sqlite = new SQLite(
    *     {
@@ -623,11 +622,11 @@ describe('SQLite Connector - Integration Tests', () => {
    *   );
    *   await sqlite.onInit();
    * });
-   * 
+   *
    * afterAll(async () => {
    *   await sqlite.onStop();
    * });
-   * 
+   *
    * it('should insert and retrieve a user', async () => {
    *   const userRepo = sqlite.model(User);
    *   const newUser = userRepo.create({
@@ -638,7 +637,7 @@ describe('SQLite Connector - Integration Tests', () => {
    *   const savedUser = await userRepo.save(newUser);
    *   expect(savedUser.id).toBeDefined();
    * });
-   * 
+   *
    * it('should execute transaction', async () => {
    *   const result = await sqlite.tx(async () => {
    *     const userRepo = sqlite.model(User);
@@ -652,11 +651,4 @@ describe('SQLite Connector - Integration Tests', () => {
    * });
    * ```
    */
-  
-  it.skip('Integration tests use bun:sqlite - enable by removing skip', () => {
-    // This test is skipped intentionally.
-    // To enable integration tests, remove the .skip modifier.
-    // Tests will use Bun's built-in SQLite support (bun:sqlite).
-    expect(true).toBe(true);
-  });
 });
