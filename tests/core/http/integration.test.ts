@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it, test } from 'bun:test';
-import type { Req, Res, StreamReq } from '../../src/core/http/core';
+import type { Req, Res, StreamReq } from '../../../src/core/http/core';
 import {
   PROXY_DIRECTIVE,
   isProxyDirective,
   proxyTo,
-} from '../../src/core/http/proxy';
+} from '../../../src/core/http/proxy';
 import {
   Application as AppClass,
   Group as GroupClass,
-} from '../../src/core/http/server/bun';
+} from '../../../src/core/http/server/bun';
 
 // ============================================================================
 // Application (Server) Integration Tests
