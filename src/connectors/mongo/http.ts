@@ -11,7 +11,7 @@ import {
 import { beanOf } from '../../core/ioc';
 import { Log, Logger } from '../../core/logging';
 import { PERM_ALL, permOf } from '../../core/rbac';
-import { Action, flatten, isDecimal, num } from '../../core/types';
+import { Action, isDecimal, num } from '../../core/types';
 import { Auth, type AuthReq } from '../../middlewares/auth';
 import { Mongo, MongoBean, SYSTEM_DATABASES } from './client';
 import { ObjectId } from './types';
@@ -49,7 +49,8 @@ class QueryParser {
       return Number(value);
     if (
       typeof value === 'string' &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+      (value.startsWith('date:') ||
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value))
     ) {
       const date = new Date(value);
       if (!isNaN(date.getTime())) return date;
@@ -273,23 +274,34 @@ function escapeCsvValue(value: any): string {
 }
 
 /**
+ * Resolves a value from a document using a dot-notation path.
+ */
+function resolvePath(doc: any, path: string): any {
+  return path.split('.').reduce((acc, part) => acc && acc[part], doc);
+}
+
+/**
  * Converts a document to a CSV row.
  * @param doc the document.
  * @param columns the columns to include.
  */
 function docToCsvRow<T>(doc: T, columns: string[]): string {
-  const values = flatten<Record<string, any>>(doc, 10, (val) => {
+  const values = columns.map((column) => {
+    const val = resolvePath(doc, column);
+
     if (val instanceof Date) {
       return val.toISOString();
     }
     if (val instanceof ObjectId) {
       return val.toHexString();
     }
+    if (typeof val === 'object' && val !== null) {
+      return JSON.stringify(val);
+    }
     return val;
   });
-  return (
-    columns.map((column) => escapeCsvValue(values[column])).join(',') + '\n'
-  );
+
+  return values.map((value) => escapeCsvValue(value)).join(',') + '\n';
 }
 
 export function useMongoREST(options: MongoHttpOptions = {}) {

@@ -152,6 +152,20 @@ export class RedisSubscriber extends Subscriber implements OnInit, OnStop {
       const handlers = this.subs.get(channel) || [];
       this.subs.set(channel, [...handlers, handler]);
     }
+    return async () => {
+      const channelsToUnsubscribe: string[] = [];
+      for (const channel of channels) {
+        const handlers = this.subs.get(channel) || [];
+        const index = handlers.findIndex((h) => h === handler);
+        const newHandlers = [...handlers];
+        newHandlers.splice(index, 1);
+        this.subs.set(channel, newHandlers);
+        if (!newHandlers.length) {
+          channelsToUnsubscribe.push(channel);
+        }
+      }
+      await this.unsubscribe(...channelsToUnsubscribe);
+    };
   }
 
   override async unsubscribe(...channels: string[]) {

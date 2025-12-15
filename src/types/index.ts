@@ -50,11 +50,12 @@ declare global {
    * Prepares handling messages received from specific channels.
    * @param handler the function to handle received messages.
    * @param channels the channels' identifiers to listen to.
+   * @returns a function to remove registered function from handling received messages.
    */
   var on: <T>(
     handler: (message: T, channel: string) => void | Promise<void>,
     ...channels: string[]
-  ) => Promise<void>;
+  ) => Promise<() => void>;
 }
 
 export {};

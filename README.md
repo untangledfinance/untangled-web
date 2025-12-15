@@ -64,7 +64,8 @@ new App().main();
 
 You can take a look at the available [examples](/examples/) to explore framework features:
 
-- **web-app** - Comprehensive example with HTTP endpoints, file uploads, CORS, and filters
+- **web-app** - Comprehensive example with HTTP endpoints, file uploads, CORS, and filters.
+- Use this [starter](https://github.com/untangledfinance/untangled-web-starter) as a template to start building your web applications.
 
 ## Runtime
 

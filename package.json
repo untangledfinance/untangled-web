@@ -21,6 +21,7 @@
   "lint-staged": {
     "*": "bun run format --ignore-unknown"
   },
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [

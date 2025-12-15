@@ -11,7 +11,10 @@ type Event<T = any> = {
   data: T;
 };
 
-type EventHandler<T = any, R = any> = (e?: Event<T>) => Promise<R>;
+/**
+ * Function to handle a given event.
+ */
+type EventHandler<T = any, R = any> = (e?: Event<T>) => R | Promise<R>;
 
 /**
  * Contains functions to handle all available events.
@@ -49,12 +52,17 @@ export function emit<T = any>(
     .map(({ handler }) => handler);
   setImmediate(async () =>
     Promise.all(
-      handlers.map((h) =>
-        h({
-          key: event,
-          data,
-        }).catch(onError)
-      )
+      handlers.map(async (h) => {
+        try {
+          return h({
+            key: event,
+            data,
+          });
+        } catch (err) {
+          if (onError) onError(err);
+          else throw err;
+        }
+      })
     )
   );
   return handlers.length;
@@ -64,14 +72,32 @@ export function emit<T = any>(
  * Registers a function to handle a specific event.
  * @param event type of the event.
  * @param handler the function to handle the event.
+ * @returns a function to unregister the function from handling the event.
  * @see emit
  */
-export function on<T extends Function>(event: string, handler: T) {
+export function on<T = any, R = any>(
+  event: string,
+  handler: EventHandler<T, R>
+) {
   EventContext.set([
     ...EventContext.getOrThrow(),
     {
       key: event,
-      handler: async (e) => handler(e),
+      handler,
     },
   ]);
+  /**
+   * Unregisters the function from handling the event.
+   */
+  return function clean() {
+    const handlers = EventContext.getOrThrow();
+    const handlerIndex = handlers.findIndex(
+      (h) => h.key === event && h.handler === handler
+    );
+    if (handlerIndex >= 0) {
+      const newHandlers = [...handlers];
+      newHandlers.splice(handlerIndex, 1);
+      EventContext.set(newHandlers);
+    }
+  };
 }

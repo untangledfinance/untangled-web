@@ -40,6 +40,11 @@ class Nullable<V> {
    */
   public static NullPointerError = class extends Error {};
 
+  private static readonly SELECTOR_CACHE = new Map<
+    string,
+    (string | number)[]
+  >();
+
   /**
    * Creates a new nullable instance of a given value.
    * @param value the value.
@@ -143,19 +148,32 @@ class Nullable<V> {
    * console.log(obj.query('(a.b).c.1').get()); // expect: 2
    */
   query<T>(selector: string) {
-    const select = (v: V) => {
-      let res: any = v;
+    let path = Nullable.SELECTOR_CACHE.get(selector);
+
+    if (!path) {
+      path = [];
       const regex = /(?:\"([^\"]+)\"|\(([^\)]+)\)|([^\.\[\]]+))(?:\[(\d+)\])?/g;
       let match: RegExpExecArray | null = null;
 
       while ((match = regex.exec(selector)) !== null) {
-        if (res === undefined) break;
         const key = match[1] || match[2] || match[3];
         const index = match[4];
-        key && (res = res?.[key]);
-        index !== undefined && (res = res?.[parseInt(index, 10)]);
+        key && path.push(key);
+        index !== undefined && path.push(parseInt(index, 10));
       }
 
+      if (Nullable.SELECTOR_CACHE.size > 500) {
+        Nullable.SELECTOR_CACHE.clear();
+      }
+      Nullable.SELECTOR_CACHE.set(selector, path);
+    }
+
+    const select = (v: V) => {
+      let res: any = v;
+      for (const p of path!) {
+        if (res === undefined) break;
+        res = res?.[p];
+      }
       return res as T;
     };
     return this.map(select);

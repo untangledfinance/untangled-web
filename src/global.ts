@@ -35,11 +35,16 @@ const useSubscriber = () => {
       handler: (message: T, channel: string) => void | Promise<void>,
       ...channels: string[]
     ) {
-      channels.forEach((channel) =>
+      const unsubscribes = channels.map((channel) =>
         event.on(channel, (e: { key: string; data: T }) =>
           handler(e.data, e.key)
         )
       );
+      return () => {
+        for (const unsubscribe of unsubscribes) {
+          unsubscribe();
+        }
+      };
     },
   };
   try {

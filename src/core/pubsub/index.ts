@@ -3,8 +3,8 @@ import { Callable, notImplementedYet } from '../types';
 /**
  * A publisher can push messages to specific channels.
  */
-export class Publisher extends Callable<void> {
-  override async _<T>(message: T, ...channels: string[]): Promise<void> {
+export class Publisher extends Callable<Promise<void>> {
+  override async _<T>(message: T, ...channels: string[]) {
     return this.publish(message, ...channels);
   }
 
@@ -29,11 +29,8 @@ export type MessageHandler<T> = (
 /**
  * A subscriber can receive messages from its subscribed channels.
  */
-export class Subscriber extends Callable<void> {
-  override async _<T>(
-    handler: MessageHandler<T>,
-    ...channels: string[]
-  ): Promise<void> {
+export class Subscriber extends Callable<Promise<() => Promise<void>>> {
+  override async _<T>(handler: MessageHandler<T>, ...channels: string[]) {
     return this.subscribe(handler, ...channels);
   }
 
@@ -48,11 +45,12 @@ export class Subscriber extends Callable<void> {
    * Subscribes to given channels and uses a function to process received messages.
    * @param handler the function to process retrieved messages.
    * @param channels the channels.
+   * @returns a function to remove the handler from subscribing to the channels.
    */
   async subscribe<T>(
     handler: MessageHandler<T>,
     ...channels: string[]
-  ): Promise<void> {
+  ): Promise<() => Promise<void>> {
     throw notImplementedYet();
   }
 
