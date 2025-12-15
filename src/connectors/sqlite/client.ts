@@ -7,7 +7,8 @@ import { EntityType, PropagationType, SqliteOptions } from './types';
 import { Migrations } from './utils';
 
 /**
- * A SQLite instance using bun:sqlite.
+ * A SQLite connector using TypeORM with the 'sqlite' driver.
+ * Provides a TypeORM-based interface for SQLite, similar to the Postgres connector.
  */
 @Log
 export class SQLite implements OnInit, OnStop {
@@ -16,6 +17,15 @@ export class SQLite implements OnInit, OnStop {
   private readonly dataSource: DataSource;
   private readonly entities: EntityType[];
 
+  /**
+   * Creates a new SQLite connector instance.
+   * @param options SQLite connection options including database path, migrations, and performance settings.
+   * @param options.database Path to the SQLite database file (e.g., './data.db' or ':memory:' for in-memory database).
+   * @param options.migrationRoot Optional path to migration files directory.
+   * @param options.enableWAL Optional flag to enable Write-Ahead Logging mode for better performance.
+   * @param options.busyTimeout Optional timeout in milliseconds for handling SQLITE_BUSY errors.
+   * @param entities Entity classes to be used with this SQLite instance.
+   */
   constructor(options: Partial<SqliteOptions>, ...entities: EntityType[]) {
     this.dataSource = new DataSource({
       type: 'sqlite',
@@ -25,6 +35,8 @@ export class SQLite implements OnInit, OnStop {
         debug: process.env['DEBUG'] === 'true',
       }),
       migrationsRun: !!options.migrationRoot,
+      enableWAL: options.enableWAL,
+      busyTimeout: options.busyTimeout,
     });
     this.options = options;
     this.entities = entities;
@@ -61,6 +73,11 @@ export class SQLite implements OnInit, OnStop {
 
   /**
    * Retrieves a SQLite client.
+   *
+   * Note: Unlike the Postgres connector, SQLite does not provide a db() method
+   * for switching databases. SQLite typically uses a single database file per connection.
+   * To work with multiple SQLite databases, create separate SQLite instances with
+   * different database paths.
    */
   get client(): Omit<
     DataSource,

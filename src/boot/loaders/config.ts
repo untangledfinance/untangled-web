@@ -89,7 +89,7 @@ function envConfigs(): Partial<Configurations> {
       sqlite: {
         database: env('SQLITE_DATABASE'),
         migrationRoot: env('SQLITE_MIGRATIONS'),
-        enableWAL: env('SQLITE_WAL') !== 'false',
+        enableWAL: env('SQLITE_WAL') === 'true',
         busyTimeout: parseInt(env('SQLITE_BUSY_TIMEOUT')) || 5000,
       },
       redis: {

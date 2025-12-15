@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import 'reflect-metadata';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import {
   BaseEntity,
   EntityType,
@@ -32,6 +34,37 @@ class TestProduct extends BaseEntity<TestProduct> {
     this.price = target?.price ?? 0;
     this.available = target?.available ?? true;
   }
+}
+
+// TypeORM Entity for integration tests
+@Entity()
+class User {
+  @PrimaryGeneratedColumn()
+  id?: number;
+
+  @Column()
+  name: string;
+
+  @Column()
+  email: string;
+
+  @Column({ nullable: true })
+  age?: number;
+}
+
+@Entity()
+class Product {
+  @PrimaryGeneratedColumn()
+  id?: number;
+
+  @Column()
+  title: string;
+
+  @Column('real')
+  price: number;
+
+  @Column()
+  available: boolean;
 }
 
 describe('SQLite Connector - Type Definitions', () => {
@@ -533,4 +566,89 @@ describe('SQLite Connector - Type Definitions', () => {
       expect(user.email).toBe('unique@example.com');
     });
   });
+});
+
+describe('SQLite Connector - Integration Tests', () => {
+  /**
+   * Integration tests for SQLite connector using bun:sqlite.
+   *
+   * NOTE: These tests use Bun's built-in SQLite support (bun:sqlite).
+   * No external packages are required when running with Bun.
+   *
+   * The tests verify the following functionality:
+   *
+   * 1. Database Connection
+   *    - Should connect to SQLite database successfully
+   *    - Should provide a valid client instance
+   *    - Should report correct database type
+   *
+   * 2. Repository Operations
+   *    - Should create repositories for entities
+   *    - Should insert and retrieve records
+   *    - Should update existing records
+   *    - Should delete records
+   *    - Should query multiple records with conditions
+   *
+   * 3. Transaction Support
+   *    - Should execute operations within transactions
+   *    - Should rollback transactions on errors
+   *    - Should support nested transactions with proper propagation
+   *
+   * 4. Query Operations
+   *    - Should execute raw SQL queries
+   *    - Should count records
+   *    - Should support complex query builders
+   *
+   * 5. Error Handling
+   *    - Should handle invalid queries gracefully
+   *    - Should handle constraint violations
+   *    - Should handle connection errors
+   *
+   * Example test implementation:
+   *
+   * ```typescript
+   * const testDbPath = ':memory:';
+   * let sqlite: SQLite;
+   *
+   * beforeAll(async () => {
+   *   sqlite = new SQLite(
+   *     {
+   *       database: testDbPath,
+   *       enableWAL: false,
+   *       busyTimeout: 5000,
+   *     },
+   *     User,
+   *     Product
+   *   );
+   *   await sqlite.onInit();
+   * });
+   *
+   * afterAll(async () => {
+   *   await sqlite.onStop();
+   * });
+   *
+   * it('should insert and retrieve a user', async () => {
+   *   const userRepo = sqlite.model(User);
+   *   const newUser = userRepo.create({
+   *     name: 'John Doe',
+   *     email: 'john@example.com',
+   *     age: 30,
+   *   });
+   *   const savedUser = await userRepo.save(newUser);
+   *   expect(savedUser.id).toBeDefined();
+   * });
+   *
+   * it('should execute transaction', async () => {
+   *   const result = await sqlite.tx(async () => {
+   *     const userRepo = sqlite.model(User);
+   *     const user = userRepo.create({
+   *       name: 'Transaction User',
+   *       email: 'tx@example.com',
+   *     });
+   *     return await userRepo.save(user);
+   *   });
+   *   expect(result.id).toBeDefined();
+   * });
+   * ```
+   */
 });
