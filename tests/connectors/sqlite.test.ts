@@ -571,13 +571,10 @@ describe('SQLite Connector - Type Definitions', () => {
 
 describe('SQLite Connector - Integration Tests', () => {
   /**
-   * Integration tests for SQLite connector.
+   * Integration tests for SQLite connector using bun:sqlite.
    * 
-   * NOTE: These tests require sqlite3 or better-sqlite3 to be installed.
-   * To run these tests, install the required package:
-   *   bun add -d sqlite3
-   * OR
-   *   bun add -d better-sqlite3
+   * NOTE: These tests use Bun's built-in SQLite support (bun:sqlite).
+   * No external packages are required when running with Bun.
    * 
    * The tests verify the following functionality:
    * 
@@ -656,9 +653,10 @@ describe('SQLite Connector - Integration Tests', () => {
    * ```
    */
   
-  it.skip('Integration tests require sqlite3 package to be installed', () => {
+  it.skip('Integration tests use bun:sqlite - enable by removing skip', () => {
     // This test is skipped intentionally.
-    // To enable integration tests, install sqlite3 or better-sqlite3.
+    // To enable integration tests, remove the .skip modifier.
+    // Tests will use Bun's built-in SQLite support (bun:sqlite).
     expect(true).toBe(true);
   });
 });
