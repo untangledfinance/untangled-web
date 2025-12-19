@@ -1239,7 +1239,7 @@ export abstract class Application extends Group implements Server, OnStop {
    * @returns This application for method chaining
    * @throws Error if server is already running
    */
-  async start({ host, port }: Partial<ServeOptions> = {}) {
+  async start({ host, port, idleTimeout }: Partial<ServeOptions> = {}) {
     !this.routes.length && configure(this);
     if (this.server) {
       throw new Error('Already served!');
@@ -1255,6 +1255,7 @@ export abstract class Application extends Group implements Server, OnStop {
     this.server = Bun.serve({
       hostname: host ?? '0.0.0.0',
       port: port ?? 3000,
+      idleTimeout: idleTimeout ?? 60,
 
       async fetch(req: Request, server): Promise<Response> {
         const url = new URL(req.url);

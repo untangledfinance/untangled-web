@@ -752,6 +752,7 @@ export interface RouteOptions {
 export interface ServeOptions extends RouteOptions {
   port?: number;
   host?: string;
+  idleTimeout?: number;
 }
 
 export interface FilterOptions {
