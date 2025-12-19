@@ -118,6 +118,16 @@ function envConfigs(): Partial<Configurations> {
         database: parseInt(env('REDIS_PUBSUB_DATABASE')),
       },
     },
+    lock: {
+      type: env('LOCK_TYPE'),
+      redis: {
+        host: env('REDIS_LOCK_HOST'),
+        port: parseInt(env('REDIS_LOCK_PORT')) || 6379,
+        username: env('REDIS_LOCK_USERNAME'),
+        password: env('REDIS_LOCK_PASSWORD'),
+        database: parseInt(env('REDIS_LOCK_DATABASE')),
+      },
+    },
     storage: {
       provider: env('STORAGE_PROVIDER'),
       bucketName: env('STORAGE_BUCKET_NAME'),

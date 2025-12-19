@@ -60,6 +60,12 @@ The framework heavily uses TypeScript decorators for declarative configuration:
 - `@Boot(...loaders)` - Attach boot loaders to application class
 - Boot loaders execute before bean initialization
 
+#### Locking Decorators:
+
+- `@Lockable(options)` - Method-level distributed locking
+- `createLockDecorator(configs)` - Create lock decorator using IoC Lock bean
+- `createRequestLockDecorator(configs)` - Create request-scoped lock decorator
+
 #### Scheduling Decorators:
 
 - `@Job` - Mark class as scheduled job runner
@@ -236,6 +242,7 @@ type AuthFileReq<T> = FileReq<T> & {
     // Initialize beans
     database: { mongo: true },
     cache: true,
+    lock: { redis: true },
     jwt: true,
     scheduler: { enabled: true, jobs: [MyJob] },
   })
@@ -246,7 +253,7 @@ export class App extends Application {}
 **Available Loaders**:
 
 - `config()` - Load environment variables and config files
-- `bean()` - Initialize databases, caches, queues, JWT, schedulers, etc.
+- `bean()` - Initialize databases, caches, queues, locks, JWT, schedulers, etc.
 
 ### Configuration System (`src/core/config/`, `src/types/config.ts`)
 
@@ -264,6 +271,7 @@ export class App extends Application {}
 - `cache` - Caching configuration
 - `queue` - Message queue settings
 - `pubsub` - Pub-Sub configuration
+- `lock` - Distributed locking configuration
 - `storage` - Cloud storage (GCP, AWS S3)
 - `jwt` - JWT authentication
 - `acl` - RBAC settings
@@ -384,6 +392,77 @@ await subscriber.subscribe(
 
 await publisher.publish({ data: 'hello' }, 'channel1');
 ```
+
+### Distributed Locking (`src/core/locking/`)
+
+**Lock abstraction for distributed systems**:
+
+- `SimpleLock` - In-memory lock (single instance)
+- `RedisLock` - Redis-based distributed lock
+
+```typescript
+const lock = $(Lock);
+
+// Basic locking
+const acquired = await lock.lock('resource-key');
+if (acquired) {
+  try {
+    // Critical section
+  } finally {
+    await lock.unlock('resource-key');
+  }
+}
+
+// With options
+await lock.lock('key', {
+  timeout: 5000, // Wait up to 5s to acquire
+  ttl: 30000, // Lock expires after 30s
+  auth: 'owner', // Only this owner can unlock
+});
+
+// Check lock status
+const isLocked = await lock.locked('key');
+```
+
+**Lockable Decorator** - Method-level locking:
+
+```typescript
+import { createLockDecorator } from 'untangled-web/boot/decorators';
+
+// Create decorator (uses Lock bean from IoC)
+export const Locked = createLockDecorator(() => Configs);
+
+class OrderService {
+  @Locked(5000, 30000) // timeout: 5s, ttl: 30s
+  async processOrder(orderId: string) {
+    // Only one execution at a time per unique arguments
+    // Lock key: "OrderService:processOrder:[orderId]"
+  }
+}
+```
+
+**Request Lock Decorator** - For controllers:
+
+```typescript
+import { createRequestLockDecorator } from 'untangled-web/boot/decorators';
+
+export const ReqLock = createRequestLockDecorator(() => Configs);
+
+class OrderController {
+  @ReqLock(5000, 30000)
+  async createOrder(req: Req) {
+    // Locked per unique request path
+  }
+}
+```
+
+**Lock Options**:
+
+- `timeout` - Time to wait for lock acquisition (ms)
+- `ttl` - Lock time-to-live / auto-expiry (ms)
+- `auth` - Owner identifier (only matching auth can unlock)
+
+**LockTimeoutError** - Thrown when lock acquisition times out.
 
 ### Scheduling (`src/core/scheduling/`)
 
@@ -581,11 +660,12 @@ The framework uses extensive environment variable configuration. Key variables:
 - `JWT_PRIVATE_KEY`, `JWT_EXPIRY`
 - `ACL_PATH`, `ACL_ENABLED` - RBAC config
 
-**Cache/Queue/PubSub**:
+**Cache/Queue/PubSub/Lock**:
 
 - `CACHE_ENABLED`, `CACHE_TYPE`
 - `QUEUE_TYPE`, `REDIS_QUEUE_HOST`, `REDIS_QUEUE_DATABASE`
 - `PUBSUB_TYPE`, `REDIS_PUBSUB_HOST`, `REDIS_PUBSUB_DATABASE`
+- `LOCK_TYPE`, `REDIS_LOCK_HOST`, `REDIS_LOCK_PORT`, `REDIS_LOCK_DATABASE`
 
 **Storage**:
 

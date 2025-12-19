@@ -16,6 +16,9 @@ import { AppJob } from './app.job';
     queue: {
       redis: true,
     },
+    lock: {
+      redis: true,
+    },
     jwt: true,
     scheduler: {
       enabled: true,

@@ -91,6 +91,16 @@ export type Configurations<E extends Env = Env> = {
       database?: number;
     };
   };
+  lock: {
+    type?: string;
+    redis: {
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      database?: number;
+    };
+  };
   storage: {
     provider?: 'gcp' | 'aws';
     bucketName?: string;

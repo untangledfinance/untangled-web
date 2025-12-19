@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { RedisOptions, RedisStore } from '../../connectors/caching';
+import { RedisLock } from '../../connectors/locking';
 import { Mongo } from '../../connectors/mongo';
 import { SlackConnector } from '../../connectors/notify';
 import { EntityType, Postgres } from '../../connectors/postgres';
@@ -12,6 +13,7 @@ import {
 import { CacheStore, LocalCacheStore } from '../../core/caching';
 import { asBean, isBean, shutdown } from '../../core/ioc';
 import { Jwt } from '../../core/jwt';
+import { Lock, SimpleLock } from '../../core/locking';
 import { NotifyConnector } from '../../core/notify';
 import { Publisher, Subscriber } from '../../core/pubsub';
 import { Queue } from '../../core/queue';
@@ -187,6 +189,27 @@ async function initializeSubscriber(configs: Configurations) {
 }
 
 /**
+ * Initializes the {@link Lock} bean.
+ */
+async function initializeLock(configs: Configurations) {
+  const lock = (() => {
+    switch (configs.lock?.type?.toLowerCase()) {
+      case 'redis':
+        return new (asBean<Lock>(RedisLock, Lock.name))({
+          host: configs.lock.redis.host,
+          port: configs.lock.redis.port,
+          username: configs.lock.redis.username,
+          password: configs.lock.redis.password,
+          database: configs.lock.redis.database,
+        });
+      default:
+        return new (asBean<Lock>(SimpleLock, Lock.name))();
+    }
+  })();
+  return lock;
+}
+
+/**
  * Initializes the {@link NotifyConnector} bean using Slack.
  */
 async function initializeSlackClient(configs: Configurations) {
@@ -311,6 +334,15 @@ export type InitOptions = Partial<{
     redis: boolean;
   }>;
   /**
+   * Distributed locking.
+   */
+  lock: Partial<{
+    /**
+     * Redis Lock.
+     */
+    redis: boolean;
+  }>;
+  /**
    * Uses Slack client.
    */
   slack: boolean;
@@ -366,6 +398,7 @@ export default ((init) => async () => {
       initializePublisher(configs),
       initializeSubscriber(configs),
     ]));
+  init.lock && (await initializeLock(configs));
   init.slack && (await initializeSlackClient(configs));
   init.scheduler &&
     (await scheduleJobs(

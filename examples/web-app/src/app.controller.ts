@@ -21,6 +21,15 @@ export class AppController {
     return this.appService.getCurrentTime();
   }
 
+  @Get('/protected-resource')
+  async protectedResource() {
+    return Promise.all([
+      this.appService.getProtectedResource(),
+      this.appService.getProtectedResource(),
+      this.appService.getProtectedResource(),
+    ]);
+  }
+
   @Get('/error')
   async error() {
     throw new Error('Whoops!');
