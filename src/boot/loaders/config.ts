@@ -6,22 +6,14 @@ import { useConfigs } from './hooks';
 import { UseBootLoader } from './types';
 
 /**
- * {@link Env} from `process.env`.
- */
-function processEnv(): Env {
-  return process.env;
-}
-
-/**
  * Retrieves the first defined value from the current {@link Env}.
  * @param names {@link Env} keys to check.
  */
-function env(...names: string[]) {
-  const environ = processEnv();
+function env<V = string>(...names: string[]) {
   for (const name of names) {
     if (!name?.trim()?.length) continue;
-    const value = environ[name];
-    if (value !== undefined) return value;
+    const value = Bun.env[name];
+    if (value !== undefined) return value as V;
   }
 }
 
@@ -29,7 +21,6 @@ function env(...names: string[]) {
  * Constructs the {@link Configurations} from current {@link Env}.
  */
 function envConfigs(): Partial<Configurations> {
-  const environ = processEnv();
   return {
     system: {
       name: env('SYSTEM_NAME') || os.hostname(),
@@ -50,7 +41,7 @@ function envConfigs(): Partial<Configurations> {
       allowedOrigins: env('CORS_ALLOWED_ORIGINS')?.split?.(','),
       maxAge: env('CORS_MAX_AGE'),
     },
-    proxy: Object.entries(environ).reduce((m, [k, v]) => {
+    proxy: Object.entries(Bun.env).reduce((m, [k, v]) => {
       if (k.startsWith('PROXY_')) {
         m[k.replace(/^PROXY_/g, '').toUpperCase()] = v;
       }
@@ -144,7 +135,7 @@ function envConfigs(): Partial<Configurations> {
       accessKeyId: env('AWS_ACCESS_KEY_ID'),
       secretAccessKey: env('AWS_SECRET_ACCESS_KEY'),
     },
-    env: /* reconstruct json values */ Object.entries(environ).reduce(
+    env: /* reconstruct json values */ Object.entries(Bun.env).reduce(
       (env, [key, val]) => {
         try {
           env[key] = JSON.parse(val);

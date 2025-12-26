@@ -20,8 +20,6 @@
   "core/types",
   "core/validation",
   "connectors/caching",
-  "connectors/ethers",
-  "connectors/graph",
   "connectors/mongo",
   "connectors/notify",
   "connectors/postgres",

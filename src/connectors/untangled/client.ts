@@ -17,7 +17,7 @@ export const UNTANGLED_API_BASE_URL = 'https://api.untangled.finance';
 export class Untangled extends HttpClient {
   constructor() {
     super({
-      baseURL: process.env.UNTANGLED_API_BASE_URL || UNTANGLED_API_BASE_URL,
+      baseURL: Bun.env.UNTANGLED_API_BASE_URL || UNTANGLED_API_BASE_URL,
     });
   }
 

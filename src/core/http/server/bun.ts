@@ -1347,7 +1347,7 @@ export abstract class Application extends Group implements Server, OnStop {
     this.emit('started', {
       app: {
         type: 'bun',
-        env: process.env.ENV,
+        env: Bun.env.ENV,
         profiles: [...profiles()],
         host: host ?? '0.0.0.0',
         port: this.server.port,

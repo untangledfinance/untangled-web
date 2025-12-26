@@ -560,8 +560,6 @@ src/
 │   ├── queue/         # Redis queue
 │   ├── storage/       # GCP, AWS S3
 │   ├── notify/        # Slack notifications
-│   ├── ethers/        # Ethereum (ethers.js)
-│   ├── graph/         # GraphQL clients
 │   └── untangled/     # Untangled API client
 ├── core/              # Core framework modules
 │   ├── http/          # HTTP server, routing, context, proxy
@@ -876,8 +874,6 @@ export class ProxyController {
 - @google-cloud/storage - GCP storage
 - @aws-sdk/client-s3 - AWS S3
 - @slack/web-api - Slack integration
-- ethers, viem - Ethereum
-- graphql-request - GraphQL clients
 - axios - HTTP client
 
 **Dev**:

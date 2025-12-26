@@ -13,6 +13,5 @@ export * as queue from './queue';
 export * as rbac from './rbac';
 export * as scheduling from './scheduling';
 export * as storage from './storage';
-export * as tunneling from './tunneling';
 export * as types from './types';
 export * as validation from './validation';

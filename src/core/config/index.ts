@@ -44,7 +44,7 @@ export class ConfigStore {
     for (const env in envs) {
       try {
         const val = envs[env];
-        process.env[env] =
+        Bun.env[env] =
           val === undefined || val === null || isString(val)
             ? val
             : JSON.stringify(val);

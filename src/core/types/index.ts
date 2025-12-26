@@ -380,7 +380,7 @@ export abstract class Callable<R = any> extends Function {
  */
 export function profiles() {
   return new Set(
-    [process.env.ENV, process.env.PROFILES]
+    [Bun.env.ENV, Bun.env.PROFILES]
       .map((val) => Optional(val))
       .map((opt) => opt.map((s) => s.toLowerCase()).map((s) => s.split(',')))
       .filter((opt) => opt.present)

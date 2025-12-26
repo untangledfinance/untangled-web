@@ -234,7 +234,7 @@ export function Profile(name: string, ...others: string[]) {
 
 /**
  * Enables only for given environment.
- * @param name name of the environment (retrievable via `process.env.ENV`).
+ * @param name name of the environment (retrievable via `Bun.env.ENV`).
  * @see Profile
  */
 export const Env = (name: string) => Profile(name);

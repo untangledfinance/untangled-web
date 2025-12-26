@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { CorsOptions } from '../core/http';
 
 /**
@@ -116,17 +115,6 @@ export type Configurations<E extends Env = Env> = {
     region?: string;
     accessKeyId?: string;
     secretAccessKey?: string;
-  };
-  rpc: {
-    [chainId: `${number}` | number]:
-      | (ethers.JsonRpcProvider & { url: string })
-      | undefined;
-  };
-  subgraph: {
-    [chainId: number]: string;
-  };
-  tx: {
-    [key: string]: string;
   };
   /**
    * Structural environment variables.

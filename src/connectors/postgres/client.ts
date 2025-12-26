@@ -48,7 +48,7 @@ export class Postgres implements OnInit, OnStop {
       ssl: options.tls,
       entities,
       migrations: Migrations.from(options.migrationRoot, {
-        debug: process.env['DEBUG'] === 'true',
+        debug: Bun.env.DEBUG === 'true',
       }),
       migrationsRun: !!options.migrationRoot,
     });

@@ -2,7 +2,7 @@
  * Returns basic information of the application.
  */
 export function useAppInfo() {
-  const env = process.env.ENV;
+  const env = Configs.env.ENV;
   const appName = Configs.app.name;
   const appDescription = Configs.app.description;
   const appLink = Configs.app.url;

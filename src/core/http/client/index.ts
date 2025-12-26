@@ -23,8 +23,8 @@ export class HttpClient {
 
   constructor(options: HttpClientOptions = {}) {
     const fallback = {
-      host: process.env.HOST || 'localhost',
-      port: process.env.PORT || '3000',
+      host: Bun.env.HOST || 'localhost',
+      port: Bun.env.PORT || '3000',
     };
     const fallbackURL = `http://${fallback.host}:${fallback.port}`;
     this.client = axios.create({
