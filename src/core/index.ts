@@ -1,5 +1,6 @@
 export * as caching from './caching';
 export * as config from './config';
+export { default as Configs } from './config';
 export * as context from './context';
 export * as encoding from './encoding';
 export * as event from './event';

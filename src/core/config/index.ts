@@ -53,6 +53,14 @@ export class ConfigStore {
       }
     }
   }
+
+  /**
+   * Access environment variables.
+   * Alias for Bun.env for consistent access across the codebase.
+   */
+  get env() {
+    return Bun.env;
+  }
 }
 
 /**
