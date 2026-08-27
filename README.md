@@ -74,7 +74,7 @@ You can take a look at the available [examples](/examples/) to explore framework
 
 ## Documentation
 
-See [LLM_AGENT_GUIDE.md](/LLM_AGENT_GUIDE.md) for detailed framework documentation (used as LLM agents' initial knowledge) including:
+See [AGENTS.md](/AGENTS.md) for detailed framework documentation (used as LLM agents' initial knowledge) including:
 
 - Architecture principles and IoC container
 - HTTP decorators and routing

@@ -1,4 +1,4 @@
-# Untangled Web Platform - LLM Agent Guide
+# Untangled Web
 
 ## Project Overview
 
